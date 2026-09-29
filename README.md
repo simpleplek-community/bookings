@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SimplePlek Bookings Service
 
-## Getting Started
+[![License](https://img.shields.io/github/license/simpleplek-community/bookings)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/simpleplek-community/bookings)](https://github.com/simpleplek-community/bookings/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/simpleplek-community/bookings)](https://github.com/simpleplek-community/bookings/pulls)
+[![GitHub Discussions](https://img.shields.io/github/discussions/simpleplek-community/bookings)](https://github.com/simpleplek-community/bookings/discussions)
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Project Introduction
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**SimplePlek Bookings** is a core microservice within the SimplePlek ecosystem responsible for managing space reservations, calendar scheduling, booking lifecycles, and availability verification. Designed for high throughput and reliability, this service provides API endpoints for creating, managing, updating, and cancelling bookings across various workspace environments.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Vision / Purpose
 
-## Learn More
+The vision of SimplePlek is to deliver an open, modular, and developer-friendly workspace management platform. 
 
-To learn more about Next.js, take a look at the following resources:
+The **Bookings Service** aims to:
+- **Simplify Scheduling:** Provide seamless, double-booking-proof calendar management and reservation workflows.
+- **Ensure Interoperability:** Integrate cleanly with authentication, notification, and resource-management microservices across the SimplePlek ecosystem.
+- **Maintain High Performance:** Deliver low-latency availability queries and transactional integrity for high-concurrency booking actions.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Current Capabilities
 
-## Deploy on Vercel
+- 📅 **Reservation Management:** Create, retrieve, modify, and cancel desk, room, or space bookings.
+- ⚡ **Real-Time Availability Check:** Query workspace availability across dynamic date and time ranges.
+- 🔒 **Conflict Resolution:** Built-in safeguards to prevent double-booking and concurrent state conflicts.
+- 🔔 **Event Publishing:** Emits domain events (e.g., `booking.created`, `booking.cancelled`) to trigger notifications and downstream integrations.
+- 🔐 **Role-Based Access Control (RBAC):** Restrict booking operations based on user roles (e.g., Member, Manager, Admin).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+The Bookings service follows a clean, event-driven microservice architecture:
