@@ -491,7 +491,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                       ? "Beach Shack"
                       : estimate.propertyId === "cottage"
                         ? "Cozy Cottage"
-                        : "Luxury Villa"}
+                        : "Yoga Retreat"}
                   </Badge>
                   <CardTitle className="text-lg">
                     {property?.title || "Llandudno Property"}
