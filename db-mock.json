@@ -64,6 +64,26 @@
       "name": "fdsfdsf",
       "price": 3443,
       "description": ""
+    },
+    {
+      "category": "addon",
+      "isEnabled": true,
+      "id": "call_a_meeting",
+      "propertyId": "simple-plek-development",
+      "name": "Call a meeting",
+      "price": 20000,
+      "description": "",
+      "isPro": true
+    },
+    {
+      "category": "addon",
+      "isEnabled": true,
+      "id": "monthly_payment",
+      "propertyId": "simple-plek-development",
+      "name": "Monthly payment",
+      "price": 99000,
+      "description": "Monthly instalment X 300",
+      "isPro": false
     }
   ],
   "bookings": [

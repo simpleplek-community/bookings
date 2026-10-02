@@ -528,21 +528,20 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
             <CardContent className="flex flex-col gap-4">
               {(() => {
                 const isPackagePro = (p: PackageData) => Boolean(p.isPro || p.category === "pro");
-                const isPackageAddon = (p: PackageData) => p.category === "addon";
-                const availableStayPackages = packages.filter(
-                  (pkg) => !isPackageAddon(pkg) && (!isPackagePro(pkg) || isProUser)
+                const availablePackages = packages.filter(
+                  (pkg) => (!isPackagePro(pkg) || isProUser)
                 );
                 const allProPackages = packages.filter(isPackagePro);
 
                 return (
                   <>
-                    {availableStayPackages.length === 0 && allProPackages.length === 0 ? (
+                    {availablePackages.length === 0 && allProPackages.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         No specific package configurations created for this property yet.
                       </p>
                     ) : (
                       <div className="flex flex-col gap-3">
-                        {availableStayPackages.map((pkg) => {
+                        {availablePackages.map((pkg) => {
                           const isProPackage = isPackagePro(pkg);
                           return (
                             <div
@@ -556,12 +555,20 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                             >
                               <div className="flex flex-col items-start gap-1.5">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  {isProPackage && (
+                                  {isProPackage ? (
                                     <Badge className="bg-amber-500 hover:bg-amber-500 text-black border-none font-bold text-[10px] uppercase flex items-center gap-1">
                                       <SparklesIcon className="size-3" />
                                       Pro Exclusive
                                     </Badge>
-                                  )}
+                                  ) : pkg.category === "addon" ? (
+                                    <Badge variant="outline" className="text-[10px] font-semibold uppercase">
+                                      Add-on
+                                    </Badge>
+                                  ) : pkg.category && pkg.category !== "standard" ? (
+                                    <Badge variant="outline" className="text-[10px] font-semibold uppercase">
+                                      {pkg.category}
+                                    </Badge>
+                                  ) : null}
                                 </div>
                                 <h4 className="font-heading text-sm font-medium">{pkg.name}</h4>
                                 {pkg.description && (

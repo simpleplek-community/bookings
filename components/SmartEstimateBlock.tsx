@@ -206,10 +206,9 @@ export default function SmartEstimateBlock({
   const nights = isHourly ? stayHours : stayNights;
 
   const isPackagePro = (p: PackageData) => Boolean(p.isPro || p.category === "pro");
-  const isPackageAddon = (p: PackageData) => p.category === "addon";
 
   const availablePackages = packages.filter(
-    (p) => !isPackageAddon(p) && (!isPackagePro(p) || isProUser)
+    (p) => (!isPackagePro(p) || isProUser)
   );
 
   const matchingRule = React.useMemo(() => {
