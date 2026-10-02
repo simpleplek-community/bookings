@@ -55,6 +55,7 @@ interface Property {
   weeklyDiscount?: number;
   monthlyDiscount?: number;
   mandatoryRules?: MandatoryRule[];
+  isPro?: boolean;
 }
 
 interface PackageData {
@@ -444,14 +445,36 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
             )}
 
             <CardHeader className="pt-(--card-spacing)">
-              <CardTitle className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-                {property.title}
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                <CardTitle className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+                  {property.title}
+                </CardTitle>
+                {property.isPro && (
+                  <Badge className="bg-amber-500 text-black font-bold uppercase text-xs flex items-center gap-1 shadow-xs border-transparent">
+                    <SparklesIcon className="size-3.5" />
+                    Pro Exclusive Property
+                  </Badge>
+                )}
+              </div>
               <CardDescription className="flex items-center gap-1.5">
                 <MapPinIcon className="size-3.5" />
                 {property.location || "Llandudno, Cape Town"}
               </CardDescription>
             </CardHeader>
+
+            {property.isPro && !isProUser && (
+              <div className="px-6 pb-2">
+                <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 rounded-xl">
+                  <SparklesIcon className="size-4 text-amber-600 dark:text-amber-400" />
+                  <AlertTitle className="font-bold text-amber-800 dark:text-amber-300">
+                    Pro Member Exclusive Listing
+                  </AlertTitle>
+                  <AlertDescription className="text-xs text-amber-700/90 dark:text-amber-300/80">
+                    This property is exclusively offered to Pro members. Upgrade your account plan to unlock full booking access.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
 
             <CardContent className="pt-(--card-spacing)">
               <Separator />

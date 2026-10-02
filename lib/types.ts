@@ -32,8 +32,8 @@ export interface Property {
   weeklyDiscount?: number;
   monthlyDiscount?: number;
   mandatoryRules?: MandatoryRule[];
-  hostId?: string;
   isPro?: boolean;
+  hostId?: string;
 }
 
 export interface PropertyPackage {

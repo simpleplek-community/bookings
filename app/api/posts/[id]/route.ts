@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProperty, createProperty, deleteProperty, isUserAdmin } from "@/lib/firebase";
+import { getProperty, createProperty, deleteProperty, isUserAdmin, getUserProfile } from "@/lib/firebase";
 
 export async function GET(
   request: NextRequest,
@@ -45,7 +45,21 @@ export async function PUT(
     }
 
     const body = await request.json().catch(() => ({}));
-    const { title, name, slug, basePricePerNight, airbnbCalendarUrl, googleCalendarUrl, description, images, bookingType, slots, location, weeklyDiscount, monthlyDiscount, mandatoryRules } = body;
+    const { title, name, slug, basePricePerNight, airbnbCalendarUrl, googleCalendarUrl, description, images, bookingType, slots, location, weeklyDiscount, monthlyDiscount, mandatoryRules, isPro } = body;
+
+    // Check Pro entitlement if setting isPro to true
+    if (isPro) {
+      const profile = await getUserProfile(userId);
+      const userPlan = profile?.plan || "standard";
+      const isAdmin = await isUserAdmin(userId, email);
+      if (userPlan === "standard" && !isAdmin) {
+        return NextResponse.json({
+          success: false,
+          error: "Pro-only properties require a Pro subscription plan. Please upgrade to Pro to publish Pro-exclusive listings.",
+          data: "Pro entitlement required."
+        }, { status: 403 });
+      }
+    }
 
     const resolvedTitle = title || name;
     if (!resolvedTitle || !slug || basePricePerNight === undefined) {
@@ -74,7 +88,8 @@ export async function PUT(
       location: location !== undefined ? location : (existing.location || ""),
       weeklyDiscount: weeklyDiscount !== undefined ? Number(weeklyDiscount) : (existing.weeklyDiscount || 0),
       monthlyDiscount: monthlyDiscount !== undefined ? Number(monthlyDiscount) : (existing.monthlyDiscount || 0),
-      mandatoryRules: mandatoryRules !== undefined ? mandatoryRules : (existing.mandatoryRules || [])
+      mandatoryRules: mandatoryRules !== undefined ? mandatoryRules : (existing.mandatoryRules || []),
+      isPro: isPro !== undefined ? Boolean(isPro) : Boolean(existing.isPro)
     });
 
     return NextResponse.json({ success: true, data: property });

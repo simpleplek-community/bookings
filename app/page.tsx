@@ -15,6 +15,7 @@ import {
   ImageOffIcon,
   LockIcon,
   PinIcon,
+  SparklesIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 
@@ -47,6 +48,7 @@ interface Property {
   slots?: string[];
   weeklyDiscount?: number;
   monthlyDiscount?: number;
+  isPro?: boolean;
 }
 
 /** Renders a saved date/time in the compact 24h form used across the schedule UI. */
@@ -200,12 +202,12 @@ function HomePageContent() {
         const params = new URLSearchParams(window.location.search);
         const queryHostId = params.get("hostId");
 
-        let url = "/api/posts";
-        if (subdomain) {
-          url = `/api/posts?subdomain=${subdomain}`;
-        } else if (queryHostId) {
-          url = `/api/posts?hostId=${queryHostId}`;
-        }
+        const queryParams = new URLSearchParams();
+        if (subdomain) queryParams.set("subdomain", subdomain);
+        if (queryHostId) queryParams.set("hostId", queryHostId);
+        if (user?.uid) queryParams.set("userId", user.uid);
+
+        const url = `/api/posts${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
 
         const res = await fetch(url);
         const result = await res.json();
@@ -612,9 +614,17 @@ function HomePageContent() {
                         </div>
                       )}
 
-                      <Badge variant="secondary" className="absolute top-3 left-3">
-                        {isHourly ? "Hourly slot" : "Nightly stay"}
-                      </Badge>
+                      <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
+                        <Badge variant="secondary" className="shadow-xs">
+                          {isHourly ? "Hourly slot" : "Nightly stay"}
+                        </Badge>
+                        {p.isPro && (
+                          <Badge className="bg-amber-500 text-black font-bold uppercase text-[10px] flex items-center gap-1 shadow-xs border-transparent">
+                            <SparklesIcon className="size-3" />
+                            Pro Only
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     <CardHeader className="pt-4">

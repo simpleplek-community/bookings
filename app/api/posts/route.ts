@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const hostId = searchParams.get("hostId") || undefined;
     const subdomain = searchParams.get("subdomain") || undefined;
+    const viewerId = searchParams.get("userId") || req.headers.get("x-user-id") || undefined;
 
     let resolvedHostId = hostId;
 
@@ -19,7 +20,26 @@ export async function GET(req: NextRequest) {
     }
 
     const list = await listProperties(resolvedHostId || undefined);
-    return NextResponse.json({ success: true, data: list, properties: list });
+
+    // If host is viewing their own listings in admin, return all
+    const isOwner = viewerId && resolvedHostId && viewerId === resolvedHostId;
+    
+    // Check if viewer is a Pro member or Admin
+    let isProViewer = false;
+    if (viewerId) {
+      const viewerProfile = await getUserProfile(viewerId);
+      const isViewerAdmin = await isUserAdmin(viewerId, viewerProfile?.email || "");
+      if (viewerProfile?.plan === "pro" || isViewerAdmin) {
+        isProViewer = true;
+      }
+    }
+
+    // Filter list: If not owner and not pro viewer, exclude isPro properties from public listing
+    const filteredList = isOwner || isProViewer
+      ? list
+      : list.filter((p: any) => !p.isPro);
+
+    return NextResponse.json({ success: true, data: filteredList, properties: filteredList });
   } catch (err: any) {
     console.error("GET /api/posts error:", err);
     return NextResponse.json({ success: false, error: err.message, data: err.message }, { status: 500 });
@@ -38,7 +58,9 @@ export async function POST(request: NextRequest) {
     // Verify property limit for standard subscription (max 3 properties)
     const profile = await getUserProfile(userId);
     const userPlan = profile?.plan || "standard";
-    if (userPlan === "standard") {
+    const isAdmin = await isUserAdmin(userId, email);
+
+    if (userPlan === "standard" && !isAdmin) {
       const existingListings = await listProperties(userId);
       if (existingListings.length >= 3) {
         return NextResponse.json({
@@ -50,7 +72,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { hostId, name, title, slug, basePricePerNight, description, images, airbnbCalendarUrl, googleCalendarUrl, bookingType, slots, location, weeklyDiscount, monthlyDiscount, mandatoryRules } = body;
+    const { hostId, name, title, slug, basePricePerNight, description, images, airbnbCalendarUrl, googleCalendarUrl, bookingType, slots, location, weeklyDiscount, monthlyDiscount, mandatoryRules, isPro } = body;
+
+    // Verify Pro property creation entitlement
+    if (isPro && userPlan === "standard" && !isAdmin) {
+      return NextResponse.json({
+        success: false,
+        error: "Pro-only properties require a Pro subscription plan. Please upgrade to Pro to publish Pro-exclusive listings.",
+        data: "Pro entitlement required."
+      }, { status: 403 });
+    }
 
     // Use passed hostId or fallback to headers
     const activeHostId = hostId || userId;
@@ -84,7 +115,8 @@ export async function POST(request: NextRequest) {
       location: location || "",
       weeklyDiscount: weeklyDiscount !== undefined ? Number(weeklyDiscount) : undefined,
       monthlyDiscount: monthlyDiscount !== undefined ? Number(monthlyDiscount) : undefined,
-      mandatoryRules: mandatoryRules || []
+      mandatoryRules: mandatoryRules || [],
+      isPro: Boolean(isPro)
     });
 
     return NextResponse.json({ success: true, data: property, id: property.id }, { status: 201 });

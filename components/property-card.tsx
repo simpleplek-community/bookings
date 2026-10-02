@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ArrowRightIcon, ClockIcon, MoonIcon, PackageIcon, PlusIcon } from "lucide-react"
+import { ArrowRightIcon, ClockIcon, MoonIcon, PackageIcon, PlusIcon, SparklesIcon } from "lucide-react"
 import { formatZar, rateLabel, resolveBookingType, type Property, type PropertyPackage } from "@/lib/types"
 
 interface PropertyCardProps {
@@ -47,14 +47,22 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                         {isHourly ? "Hourly slots" : "Nightly stay"}
                     </span>
 
-                    {!property.bookingType && (
-                        <span
-                            className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-bold tracking-wide uppercase text-muted-foreground backdrop-blur-sm"
-                            title="This record has no bookingType field — defaulting to nightly."
-                        >
-                            Inferred
-                        </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                        {property.isPro && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-black backdrop-blur-sm shadow-xs">
+                                <SparklesIcon className="size-3" />
+                                Pro Only
+                            </span>
+                        )}
+                        {!property.bookingType && (
+                            <span
+                                className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-bold tracking-wide uppercase text-muted-foreground backdrop-blur-sm"
+                                title="This record has no bookingType field — defaulting to nightly."
+                            >
+                                Inferred
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 

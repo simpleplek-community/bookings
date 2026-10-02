@@ -192,6 +192,8 @@ function EditPropertyContent({ id }: { id: string }) {
   const [bookingType, setBookingType] = useState<"nightly" | "hourly">("nightly");
   const [slots, setSlots] = useState<string[]>(["09:00", "13:00"]);
   const [slotAlignment, setSlotAlignment] = useState<"hourly" | "halfHour" | "all">("hourly");
+  const [isPro, setIsPro] = useState(false);
+  const [userPlan, setUserPlan] = useState<string>("standard");
 
   const [activeTab, setActiveTab] = useState<"details" | "pricing" | "availability">("pricing");
   const [mandatoryRules, setMandatoryRules] = useState<MandatoryRule[]>([
@@ -265,13 +267,22 @@ function EditPropertyContent({ id }: { id: string }) {
     const fetchPropertyData = async () => {
       // Fetch packages for this property (or all packages for new listings)
       try {
-        const pkgsRes = await fetch(isNew ? "/api/packages" : `/api/packages?propertyId=${id}`);
+        const [pkgsRes, profileRes] = await Promise.all([
+          fetch(isNew ? "/api/packages" : `/api/packages?propertyId=${id}`),
+          user ? fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`) : Promise.resolve(null)
+        ]);
         const pkgsResult = await pkgsRes.json();
         if (pkgsResult.success && Array.isArray(pkgsResult.data)) {
           setPackages(pkgsResult.data);
         }
+        if (profileRes) {
+          const profileResult = await profileRes.json();
+          if (profileResult.success && profileResult.data) {
+            setUserPlan(profileResult.data.plan || "standard");
+          }
+        }
       } catch (pkgErr) {
-        console.error("Failed to load packages:", pkgErr);
+        console.error("Failed to load packages or profile:", pkgErr);
       }
 
       if (isNew) {
@@ -287,6 +298,7 @@ function EditPropertyContent({ id }: { id: string }) {
           setTitle(result.data.title || result.data.name || "");
           setSlug(result.data.slug || "");
           setBasePrice(result.data.basePricePerNight ? Number(result.data.basePricePerNight) : 2800);
+          setIsPro(Boolean(result.data.isPro));
 
           const loadedWeekly =
             result.data.weeklyDiscount !== undefined && result.data.weeklyDiscount !== null
@@ -552,6 +564,7 @@ function EditPropertyContent({ id }: { id: string }) {
           slots: bookingType === "hourly" ? slots : [],
           location: location.trim(),
           hostId: user?.uid,
+          isPro: Boolean(isPro),
           mandatoryRules: mandatoryRules.map((rule) => {
             const ids =
               Array.isArray(rule.packageIds) && rule.packageIds.length > 0
@@ -886,6 +899,95 @@ function EditPropertyContent({ id }: { id: string }) {
                         This appears on the public listing page.
                       </FieldDescription>
                     </Field>
+
+                    <Separator />
+
+                    {/* Pro Only Property Gating Toggle */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <FieldLabel className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                          Membership Tier & Visibility
+                        </FieldLabel>
+                        {isPro && (
+                          <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase flex items-center gap-1">
+                            <Sparkles className="size-3" />
+                            Pro Exclusive Listing
+                          </Badge>
+                        )}
+                      </div>
+
+                      {userPlan === "standard" && !user?.isAdmin ? (
+                        <div className="flex items-start justify-between gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 sm:p-5">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                              <Sparkles className="size-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-foreground">Pro Only Property</h4>
+                                <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 font-bold uppercase">
+                                  🔒 Pro Feature
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                Only guests with an active Pro membership will be able to discover and book this property.
+                              </p>
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                                Your host account is currently on the Standard plan. Upgrade to Pro to enable Pro-only properties.
+                              </p>
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            disabled
+                            checked={false}
+                            className="size-4 rounded border-border text-primary opacity-40 cursor-not-allowed mt-1 shrink-0"
+                          />
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="property-ispro"
+                          className={cn(
+                            "flex items-start justify-between gap-4 rounded-2xl border p-4 sm:p-5 cursor-pointer transition-all",
+                            isPro
+                              ? "border-amber-500/50 bg-amber-500/10 shadow-xs ring-1 ring-amber-500/20"
+                              : "border-border bg-card hover:border-amber-500/30 hover:bg-muted/40"
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              "p-2.5 rounded-xl transition-colors shrink-0",
+                              isPro ? "bg-amber-500 text-black shadow-xs" : "bg-muted text-muted-foreground"
+                            )}>
+                              <Sparkles className="size-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-foreground">Pro Only Property</h4>
+                                <Badge className={cn(
+                                  "text-[10px] font-bold uppercase",
+                                  isPro
+                                    ? "bg-amber-500 text-black border-transparent"
+                                    : "bg-muted text-muted-foreground border-border"
+                                )}>
+                                  {isPro ? "⭐ Pro Only" : "Standard"}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                When enabled, this property listing will only be displayed and available to guests who are active Pro members.
+                              </p>
+                            </div>
+                          </div>
+                          <input
+                            id="property-ispro"
+                            type="checkbox"
+                            checked={isPro}
+                            onChange={(e) => setIsPro(e.target.checked)}
+                            className="size-4 rounded border-border text-amber-500 focus:ring-amber-500 mt-1 cursor-pointer shrink-0"
+                          />
+                        </label>
+                      )}
+                    </div>
 
                     <Separator />
 

@@ -162,7 +162,7 @@ export async function createProperty(data: {
     location: data.location || existing?.location || "",
     airbnbCalendarUrl: data.airbnbCalendarUrl || existing?.airbnbCalendarUrl || "",
     googleCalendarUrl: data.googleCalendarUrl || existing?.googleCalendarUrl || "",
-    isPro: data.isPro !== undefined ? Boolean(data.isPro) : Boolean(existing?.isPro || false),
+    isPro: data.isPro !== undefined ? Boolean(data.isPro) : Boolean(existing?.isPro),
     createdAt: existing?.createdAt || data.createdAt || now,
     updatedAt: now
   };
@@ -238,7 +238,8 @@ function cleanPropertyDoc(docData: any, id: string): any {
     hostId: "mock_admin_example_com",
     ...docData,
     id: docData.id || id,
-    images: cleanImages
+    images: cleanImages,
+    isPro: Boolean(docData.isPro || docData.category === "pro")
   };
 }
 
