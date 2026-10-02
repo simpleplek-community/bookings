@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const hostId = searchParams.get("hostId") || undefined;
     const subdomain = searchParams.get("subdomain") || undefined;
     const viewerId = searchParams.get("userId") || req.headers.get("x-user-id") || undefined;
+    const viewerEmail = searchParams.get("email") || req.headers.get("x-user-email") || undefined;
 
     let resolvedHostId = hostId;
 
@@ -21,20 +22,22 @@ export async function GET(req: NextRequest) {
 
     const list = await listProperties(resolvedHostId || undefined);
 
-    // If host is viewing their own listings in admin, return all
-    const isOwner = viewerId && resolvedHostId && viewerId === resolvedHostId;
+    // If host is explicitly queried (like admin dashboard) or viewer is owner/admin/pro, return all
+    const isExplicitHostQuery = Boolean(hostId && !subdomain);
+    const isOwner = Boolean((viewerId && resolvedHostId && viewerId === resolvedHostId) || isExplicitHostQuery);
     
     // Check if viewer is a Pro member or Admin
     let isProViewer = false;
-    if (viewerId) {
-      const viewerProfile = await getUserProfile(viewerId);
-      const isViewerAdmin = await isUserAdmin(viewerId, viewerProfile?.email || "");
+    if (viewerId || viewerEmail) {
+      const viewerProfile = viewerId ? await getUserProfile(viewerId) : null;
+      const emailToCheck = viewerEmail || viewerProfile?.email || "";
+      const isViewerAdmin = await isUserAdmin(viewerId || "", emailToCheck);
       if (viewerProfile?.plan === "pro" || isViewerAdmin) {
         isProViewer = true;
       }
     }
 
-    // Filter list: If not owner and not pro viewer, exclude isPro properties from public listing
+    // Filter list: If not owner, not explicit host query, and not pro viewer, exclude isPro properties from public listing
     const filteredList = isOwner || isProViewer
       ? list
       : list.filter((p: any) => !p.isPro);
@@ -48,11 +51,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check admin permissions
+    // Check authentication
     const userId = request.headers.get("x-user-id");
     const email = request.headers.get("x-user-email");
-    if (!userId || !(await isUserAdmin(userId, email))) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: admin privileges required.", data: "Unauthorized access: admin privileges required." }, { status: 403 });
+    if (!userId) {
+      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required.", data: "Unauthorized access: authentication required." }, { status: 401 });
     }
 
     // Verify property limit for standard subscription (max 3 properties)

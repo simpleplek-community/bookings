@@ -204,6 +204,29 @@
       "id": "kalk-bay-harbour-cottage",
       "createdAt": "2026-07-31T07:45:10.440Z",
       "updatedAt": "2026-07-31T07:45:10.440Z"
+    },
+    {
+      "title": "Simple Plek development",
+      "name": "Simple Plek development",
+      "slug": "simple-plek-development",
+      "basePricePerNight": 500,
+      "airbnbCalendarUrl": "",
+      "googleCalendarUrl": "",
+      "hostId": "cE63u7tstuREl9Kjy9YPhTnEI513",
+      "description": "",
+      "images": [
+        "https://pub-62b3d61e820a424983412732dac4ef9f.r2.dev/hosts/cE63u7tstuREl9Kjy9YPhTnEI513/properties/simple-plek-development/1790940423189_Right.jpg"
+      ],
+      "bookingType": "nightly",
+      "slots": [],
+      "location": "llandudno",
+      "weeklyDiscount": 0,
+      "monthlyDiscount": 0,
+      "mandatoryRules": [],
+      "isPro": true,
+      "id": "simple-plek-development",
+      "createdAt": "2026-10-02T11:27:13.689Z",
+      "updatedAt": "2026-10-02T11:27:13.689Z"
     }
   ],
   "estimates": [

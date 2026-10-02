@@ -28,8 +28,8 @@ export async function PUT(
     // Check admin/host permissions
     const userId = request.headers.get("x-user-id");
     const email = request.headers.get("x-user-email");
-    if (!userId || !(await isUserAdmin(userId, email))) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: admin privileges required." }, { status: 403 });
+    if (!userId) {
+      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required." }, { status: 401 });
     }
 
     // Retrieve existing property to verify ownership
@@ -38,9 +38,10 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
 
-    // Verify host tenancy ownership (allow if matching hostId, or if existing has no hostId, or if it is default host)
+    const isAdmin = await isUserAdmin(userId, email);
+    // Verify host tenancy ownership (allow if matching hostId, or if admin, or if existing has no hostId, or if it is default host)
     const propertyHostId = existing.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId) {
+    if (propertyHostId !== userId && !isAdmin) {
       return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
     }
 
@@ -109,8 +110,8 @@ export async function DELETE(
     // Check admin/host permissions
     const userId = request.headers.get("x-user-id");
     const email = request.headers.get("x-user-email");
-    if (!userId || !(await isUserAdmin(userId, email))) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: admin privileges required." }, { status: 403 });
+    if (!userId) {
+      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required." }, { status: 401 });
     }
 
     // Retrieve existing property to verify ownership
@@ -119,9 +120,10 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
 
+    const isAdmin = await isUserAdmin(userId, email);
     // Verify host tenancy ownership
     const propertyHostId = existing.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId) {
+    if (propertyHostId !== userId && !isAdmin) {
       return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
     }
 

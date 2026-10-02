@@ -74,7 +74,12 @@ export default function AdminPropertiesPage() {
     if (!user) return;
     try {
       const [propsRes, pkgsRes, profileRes] = await Promise.all([
-        fetch(`/api/posts?hostId=${user.uid}`),
+        fetch(`/api/posts?hostId=${user.uid}&userId=${user.uid}`, {
+          headers: {
+            "x-user-id": user.uid,
+            "x-user-email": user.email || "",
+          },
+        }),
         fetch(`/api/packages`),
         fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`)
       ]);
