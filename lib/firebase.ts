@@ -129,6 +129,7 @@ export async function createProperty(data: {
   weeklyDiscount?: number;
   monthlyDiscount?: number;
   mandatoryRules?: MandatoryRule[];
+  isPro?: boolean;
 }): Promise<any> {
   const db = getFirestore();
   const id = data.id || data.slug.trim().toLowerCase();
@@ -161,6 +162,7 @@ export async function createProperty(data: {
     location: data.location || existing?.location || "",
     airbnbCalendarUrl: data.airbnbCalendarUrl || existing?.airbnbCalendarUrl || "",
     googleCalendarUrl: data.googleCalendarUrl || existing?.googleCalendarUrl || "",
+    isPro: data.isPro !== undefined ? Boolean(data.isPro) : Boolean(existing?.isPro || false),
     createdAt: existing?.createdAt || data.createdAt || now,
     updatedAt: now
   };

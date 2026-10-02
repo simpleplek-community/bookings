@@ -9,26 +9,19 @@ import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
   Lock,
-  Moon,
-  Clock,
   ImagePlus,
   X,
   Sparkles,
   AlertTriangle,
   CheckCircle2,
-  Trash2,
   Copy,
   Check,
-  Sun,
-  Sunset,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -38,8 +31,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,14 +39,12 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-  InputGroupText,
 } from "@/components/ui/input-group";
-import { MandatoryRule, PropertyPackage, getRulePackageIds } from "@/lib/types";
+import { MandatoryRule, PropertyPackage } from "@/lib/types";
 import {
   Empty,
   EmptyContent,
@@ -73,8 +62,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { PricingTab } from "@/components/pricing/PricingTab";
+import { SaveBar, SaveState } from "@/components/pricing/SaveBar";
 
 interface Property {
   id: string;
@@ -122,14 +112,6 @@ function slugify(value: string) {
     .replace(/-+/g, "-");
 }
 
-function formatSlotLabel(slotTime: string) {
-  const [h, m] = slotTime.split(":");
-  const hourNum = Number.parseInt(h, 10);
-  const ampm = hourNum >= 12 ? "PM" : "AM";
-  const displayHour = hourNum % 12 === 0 ? 12 : hourNum % 12;
-  return `${displayHour}:${m} ${ampm}`;
-}
-
 /** Uploads a file with real progress reporting. */
 function uploadWithProgress(
   url: string,
@@ -163,6 +145,12 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const PROPERTY_TABS = [
+  { id: "details" as const, label: "Listing details", description: "Title, description, photos and location for this property." },
+  { id: "pricing" as const, label: "Pricing", description: "Price, discounts and required package rules." },
+  { id: "availability" as const, label: "Availability", description: "Sync external calendars and export listing bookings." },
+];
+
 function EditPropertyContent({ id }: { id: string }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -172,6 +160,8 @@ function EditPropertyContent({ id }: { id: string }) {
   const [property, setProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -184,9 +174,15 @@ function EditPropertyContent({ id }: { id: string }) {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [location, setLocation] = useState("");
-  const [basePrice, setBasePrice] = useState("");
-  const [weeklyDiscount, setWeeklyDiscount] = useState("");
-  const [monthlyDiscount, setMonthlyDiscount] = useState("");
+  const [basePrice, setBasePrice] = useState<number>(2800);
+  const [weeklyDiscount, setWeeklyDiscount] = useState<{ enabled: boolean; percent: number }>({
+    enabled: true,
+    percent: 10,
+  });
+  const [monthlyDiscount, setMonthlyDiscount] = useState<{ enabled: boolean; percent: number }>({
+    enabled: true,
+    percent: 20,
+  });
   const [airbnbCalendarUrl, setAirbnbCalendarUrl] = useState("");
   const [googleCalendarUrl, setGoogleCalendarUrl] = useState("");
   const [description, setDescription] = useState("");
@@ -197,9 +193,12 @@ function EditPropertyContent({ id }: { id: string }) {
   const [slots, setSlots] = useState<string[]>(["09:00", "13:00"]);
   const [slotAlignment, setSlotAlignment] = useState<"hourly" | "halfHour" | "all">("hourly");
 
-  const [activeTab, setActiveTab] = useState<"details" | "pricing" | "availability">("details");
-  const [mandatoryRules, setMandatoryRules] = useState<MandatoryRule[]>([]);
+  const [activeTab, setActiveTab] = useState<"details" | "pricing" | "availability">("pricing");
+  const [mandatoryRules, setMandatoryRules] = useState<MandatoryRule[]>([
+    { operator: "equals", nights: 1, packageIds: [] },
+  ]);
   const [copiedExportUrl, setCopiedExportUrl] = useState(false);
+  const [packages, setPackages] = useState<PropertyPackage[]>([]);
 
   const handleCopyExportUrl = useCallback(() => {
     const url = `${window.location.origin}/api/posts/${id}/export`;
@@ -207,7 +206,6 @@ function EditPropertyContent({ id }: { id: string }) {
     setCopiedExportUrl(true);
     setTimeout(() => setCopiedExportUrl(false), 2000);
   }, [id]);
-  const [packages, setPackages] = useState<PropertyPackage[]>([]);
 
   const isUploading = uploadingFiles.length > 0;
 
@@ -264,11 +262,23 @@ function EditPropertyContent({ id }: { id: string }) {
   }, [statusMessage]);
 
   useEffect(() => {
-    const fetchProperty = async () => {
+    const fetchPropertyData = async () => {
+      // Fetch packages for this property (or all packages for new listings)
+      try {
+        const pkgsRes = await fetch(isNew ? "/api/packages" : `/api/packages?propertyId=${id}`);
+        const pkgsResult = await pkgsRes.json();
+        if (pkgsResult.success && Array.isArray(pkgsResult.data)) {
+          setPackages(pkgsResult.data);
+        }
+      } catch (pkgErr) {
+        console.error("Failed to load packages:", pkgErr);
+      }
+
       if (isNew) {
         setIsLoading(false);
         return;
       }
+
       try {
         const res = await fetch(`/api/posts/${id}`);
         const result = await res.json();
@@ -276,26 +286,33 @@ function EditPropertyContent({ id }: { id: string }) {
           setProperty(result.data);
           setTitle(result.data.title || result.data.name || "");
           setSlug(result.data.slug || "");
-          setBasePrice(
-            result.data.basePricePerNight
-              ? String(result.data.basePricePerNight)
-              : ""
-          );
-          setWeeklyDiscount(
-            result.data.weeklyDiscount !== undefined
-              ? String(result.data.weeklyDiscount)
-              : ""
-          );
-          setMonthlyDiscount(
-            result.data.monthlyDiscount !== undefined
-              ? String(result.data.monthlyDiscount)
-              : ""
-          );
+          setBasePrice(result.data.basePricePerNight ? Number(result.data.basePricePerNight) : 2800);
+
+          const loadedWeekly =
+            result.data.weeklyDiscount !== undefined && result.data.weeklyDiscount !== null
+              ? Number(result.data.weeklyDiscount)
+              : 0;
+          setWeeklyDiscount({
+            enabled: loadedWeekly > 0,
+            percent: loadedWeekly > 0 ? loadedWeekly : 10,
+          });
+
+          const loadedMonthly =
+            result.data.monthlyDiscount !== undefined && result.data.monthlyDiscount !== null
+              ? Number(result.data.monthlyDiscount)
+              : 0;
+          setMonthlyDiscount({
+            enabled: loadedMonthly > 0,
+            percent: loadedMonthly > 0 ? loadedMonthly : 20,
+          });
+
           setAirbnbCalendarUrl(result.data.airbnbCalendarUrl || "");
           setGoogleCalendarUrl(result.data.googleCalendarUrl || "");
           setDescription(result.data.description || "");
           setImages(result.data.images || []);
-          setBookingType(result.data.bookingType || "nightly");
+          setLocation(result.data.location || "");
+          setBookingType(result.data.bookingType === "hourly" ? "hourly" : "nightly");
+
           const loadedSlots = result.data.slots?.length ? result.data.slots : ["09:00", "13:00"];
           setSlots(loadedSlots);
           const hasHalf = loadedSlots.some((s: string) => s.endsWith(":30"));
@@ -307,25 +324,20 @@ function EditPropertyContent({ id }: { id: string }) {
           } else {
             setSlotAlignment("hourly");
           }
+
           const normalizedRules: MandatoryRule[] = (result.data.mandatoryRules || []).map((r: any) => ({
             ...r,
-            packageIds: Array.isArray(r.packageIds) && r.packageIds.length > 0
-              ? r.packageIds
-              : (r.packageId ? [r.packageId] : []),
+            packageIds:
+              Array.isArray(r.packageIds) && r.packageIds.length > 0
+                ? r.packageIds
+                : r.packageId
+                  ? [r.packageId]
+                  : [],
             packageId: r.packageId || (Array.isArray(r.packageIds) && r.packageIds[0]) || "",
+            nights: r.nights || 1,
+            operator: r.operator || "equals",
           }));
           setMandatoryRules(normalizedRules);
-
-          // Fetch packages for this property
-          try {
-            const pkgsRes = await fetch(`/api/packages?propertyId=${id}`);
-            const pkgsResult = await pkgsRes.json();
-            if (pkgsResult.success && pkgsResult.data) {
-              setPackages(pkgsResult.data);
-            }
-          } catch (pkgErr) {
-            console.error("Failed to load packages for property rules:", pkgErr);
-          }
         } else {
           notify("error", result.error || "Property not found.");
         }
@@ -337,13 +349,12 @@ function EditPropertyContent({ id }: { id: string }) {
       }
     };
 
-    fetchProperty();
+    fetchPropertyData();
   }, [id, isNew, notify]);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
     clearFieldError("title");
-    // Only auto-fill the slug on new listings while the user hasn't edited it manually.
     if (isNew && !slugTouched) {
       setSlug(slugify(val));
       clearFieldError("slug");
@@ -449,7 +460,30 @@ function EditPropertyContent({ id }: { id: string }) {
     setImages((prev) => prev.filter((img) => img !== url));
   };
 
-  /** Returns per-field errors plus a summary message for the alert. */
+  // Rule management helpers
+  const handleAddRule = () => {
+    setMandatoryRules((prev) => [
+      ...prev,
+      {
+        operator: "greater_or_equal",
+        nights: 2,
+        packageIds: packages.length > 0 ? [packages[0].id] : [],
+        packageId: packages.length > 0 ? packages[0].id : "",
+      },
+    ]);
+  };
+
+  const handleUpdateRule = (index: number, patch: Partial<MandatoryRule>) => {
+    setMandatoryRules((prev) =>
+      prev.map((rule, idx) => (idx === index ? { ...rule, ...patch } : rule))
+    );
+  };
+
+  const handleRemoveRule = (index: number) => {
+    setMandatoryRules((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  /** Form validation */
   const validateForm = () => {
     const errors: Partial<Record<FieldName, string>> = {};
 
@@ -461,13 +495,8 @@ function EditPropertyContent({ id }: { id: string }) {
     } else if (!SLUG_PATTERN.test(slug)) {
       errors.slug = "Use lowercase letters, numbers and single dashes only.";
     }
-    if (!basePrice.trim()) {
-      errors.basePrice = "Please set a base price.";
-    } else {
-      const price = Number(basePrice);
-      if (!Number.isFinite(price) || price <= 0) {
-        errors.basePrice = "Base price must be a number greater than zero.";
-      }
+    if (!basePrice || basePrice < 1) {
+      errors.basePrice = "Enter a base price of at least R1.";
     }
     if (bookingType === "hourly" && slots.length === 0) {
       errors.slots = "Select at least one available time slot.";
@@ -481,8 +510,8 @@ function EditPropertyContent({ id }: { id: string }) {
     return { errors, summary };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isSubmitting) return;
 
     const { errors, summary } = validateForm();
@@ -493,6 +522,7 @@ function EditPropertyContent({ id }: { id: string }) {
     }
 
     setIsSubmitting(true);
+    setSaveState("saving");
     setStatusMessage(null);
 
     try {
@@ -512,8 +542,8 @@ function EditPropertyContent({ id }: { id: string }) {
           name: cleanTitle,
           slug: slug.trim().toLowerCase(),
           basePricePerNight: Number(basePrice),
-          weeklyDiscount: weeklyDiscount ? Number(weeklyDiscount) : 0,
-          monthlyDiscount: monthlyDiscount ? Number(monthlyDiscount) : 0,
+          weeklyDiscount: weeklyDiscount.enabled ? Number(weeklyDiscount.percent) : 0,
+          monthlyDiscount: monthlyDiscount.enabled ? Number(monthlyDiscount.percent) : 0,
           airbnbCalendarUrl: airbnbCalendarUrl.trim(),
           googleCalendarUrl: googleCalendarUrl.trim(),
           description: description.trim(),
@@ -523,9 +553,12 @@ function EditPropertyContent({ id }: { id: string }) {
           location: location.trim(),
           hostId: user?.uid,
           mandatoryRules: mandatoryRules.map((rule) => {
-            const ids = Array.isArray(rule.packageIds) && rule.packageIds.length > 0
-              ? rule.packageIds
-              : (rule.packageId ? [rule.packageId] : []);
+            const ids =
+              Array.isArray(rule.packageIds) && rule.packageIds.length > 0
+                ? rule.packageIds
+                : rule.packageId
+                  ? [rule.packageId]
+                  : [];
             return {
               ...rule,
               packageIds: ids,
@@ -549,6 +582,7 @@ function EditPropertyContent({ id }: { id: string }) {
         );
       }
 
+      setSaveState("saved");
       notify(
         "success",
         isNew ? "Listing created successfully!" : "Listing updated successfully!"
@@ -561,6 +595,7 @@ function EditPropertyContent({ id }: { id: string }) {
         err instanceof Error ? err.message : "An error occurred.";
       notify("error", errorMessage);
       setIsSubmitting(false);
+      setSaveState("idle");
     }
   };
 
@@ -614,7 +649,7 @@ function EditPropertyContent({ id }: { id: string }) {
   if (!user || !user.isAdmin || !hasAccess) {
     return (
       <PageShell>
-        <Empty className="w-full max-w-md rounded-xl border bg-card">
+        <Empty className="w-full max-w-md rounded-2xl border bg-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Lock />
@@ -638,31 +673,29 @@ function EditPropertyContent({ id }: { id: string }) {
     );
   }
 
-  const submitDisabled = isSubmitting || isUploading;
+  const activeTabMeta = PROPERTY_TABS.find((t) => t.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-background font-sans">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-background font-sans text-foreground pb-32">
+      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+        {/* Top Header */}
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1">
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto w-fit p-0"
-              nativeButton={false}
-              render={<Link href="/admin/properties" />}
+            <Link
+              href="/admin/properties"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ArrowLeft data-icon="inline-start" />
-              Back to Listings
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight text-balance">
+              <ArrowLeft className="h-4 w-4" />
+              Back to listings
+            </Link>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               {isNew ? "Create Property Listing" : "Edit Property Configuration"}
             </h1>
           </div>
-          <Badge variant="secondary" className="w-fit shrink-0">
+          <Badge variant="secondary" className="w-fit shrink-0 font-mono text-xs">
             {isNew ? (
               <>
-                <Sparkles />
+                <Sparkles className="h-3.5 w-3.5 mr-1 text-primary" />
                 New Listing
               </>
             ) : (
@@ -671,17 +704,19 @@ function EditPropertyContent({ id }: { id: string }) {
           </Badge>
         </header>
 
+        {/* Status Alerts */}
         <div ref={statusRef} aria-live="polite" role="status">
           {statusMessage && (
             <Alert
               variant={statusMessage.type === "success" ? "default" : "destructive"}
+              className="rounded-2xl shadow-xs"
             >
               {statusMessage.type === "success" ? (
-                <CheckCircle2 />
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               ) : (
-                <AlertTriangle />
+                <AlertTriangle className="h-4 w-4" />
               )}
-              <AlertTitle>
+              <AlertTitle className="font-semibold">
                 {statusMessage.type === "success" ? "Success" : "Something needs attention"}
               </AlertTitle>
               <AlertDescription className="text-pretty">
@@ -691,952 +726,424 @@ function EditPropertyContent({ id }: { id: string }) {
           )}
         </div>
 
-        {isNew || property ? (
-          <form onSubmit={handleSubmit} noValidate>
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {activeTab === "details" ? "Listing details" : activeTab === "pricing" ? "Pricing & Rules" : "Availability"}
-                </CardTitle>
-                <CardDescription>
-                  {activeTab === "details"
-                    ? "Provide basic details about the listing including images and location."
-                    : activeTab === "pricing"
-                      ? "Configure base pricing, stay discounts, and mandatory package rules."
-                      : "Sync external calendars and export listing's bookings."}
-                </CardDescription>
+        {/* Tab Navigation */}
+        <div
+          role="tablist"
+          aria-label="Property sections"
+          className="flex gap-6 sm:gap-8 border-b border-border overflow-x-auto"
+        >
+          {PROPERTY_TABS.map((tab) => {
+            const isActive = tab.id === activeTab;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-controls={`panel-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "relative whitespace-nowrap pb-3 text-sm sm:text-base font-semibold transition-colors duration-150 cursor-pointer",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.label}
+                {isActive && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-                <div className="flex border-b border-border mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("details")}
-                    className={cn(
-                      "px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] transition-all",
-                      activeTab === "details"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Listing Details
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("pricing")}
-                    className={cn(
-                      "px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] transition-all",
-                      activeTab === "pricing"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Pricing
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("availability")}
-                    className={cn(
-                      "px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] transition-all",
-                      activeTab === "availability"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Availability
-                  </button>
-                </div>
-              </CardHeader>
+        {/* Tab Content Form */}
+        <form id="property-form" onSubmit={handleSubmit} noValidate>
+          <div
+            id={`panel-${activeTab}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${activeTab}`}
+            className="mt-4"
+          >
+            {/* PRICING TAB (Airbnb Redesign) */}
+            {activeTab === "pricing" && (
+              <PricingTab
+                price={basePrice}
+                onPriceChange={(newPrice) => {
+                  setBasePrice(newPrice);
+                  clearFieldError("basePrice");
+                }}
+                bookingType={bookingType}
+                onBookingTypeChange={setBookingType}
+                weeklyDiscount={weeklyDiscount}
+                onWeeklyDiscountChange={setWeeklyDiscount}
+                monthlyDiscount={monthlyDiscount}
+                onMonthlyDiscountChange={setMonthlyDiscount}
+                rules={mandatoryRules}
+                onAddRule={handleAddRule}
+                onUpdateRule={handleUpdateRule}
+                onRemoveRule={handleRemoveRule}
+                packages={packages}
+                priceError={fieldErrors.basePrice}
+                slots={slots}
+                onToggleSlot={toggleSlot}
+                onClearSlots={() => setSlots([])}
+                onSetSlots={(newSlots) => {
+                  setSlots(newSlots);
+                  clearFieldError("slots");
+                }}
+                slotAlignment={slotAlignment}
+                onSlotAlignmentChange={setSlotAlignment}
+                visibleSlots={visibleSlots}
+                morningSlots={morningSlots}
+                afternoonSlots={afternoonSlots}
+                hiddenSelectedCount={hiddenSelectedCount}
+                slotsError={fieldErrors.slots}
+              />
+            )}
 
-              <CardContent>
-                {activeTab === "details" && (
+            {/* LISTING DETAILS TAB */}
+            {activeTab === "details" && (
+              <Card className="rounded-2xl border border-border bg-card shadow-xs">
+                <CardHeader>
+                  <CardTitle>{activeTabMeta?.label}</CardTitle>
+                  <CardDescription>{activeTabMeta?.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
                   <FieldGroup>
-                  <Field data-invalid={fieldErrors.title ? true : undefined}>
-                    <FieldLabel htmlFor="property-title">Property title</FieldLabel>
-                    <Input
-                      id="property-title"
-                      placeholder="e.g. Llandudno Cliffside Villa"
-                      value={title}
-                      onChange={(e) => handleTitleChange(e.target.value)}
-                      aria-invalid={fieldErrors.title ? true : undefined}
-                    />
-                    <FieldError errors={fieldErrors.title ? [{ message: fieldErrors.title }] : undefined} />
-                  </Field>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field data-invalid={fieldErrors.slug ? true : undefined}>
-                      <FieldLabel htmlFor="property-slug">
-                        Slug{isNew && !slugTouched ? " (auto-generated)" : ""}
-                      </FieldLabel>
+                    <Field data-invalid={fieldErrors.title ? true : undefined}>
+                      <FieldLabel htmlFor="property-title">Property title</FieldLabel>
                       <Input
-                        id="property-slug"
-                        inputMode="url"
-                        className="font-mono"
-                        placeholder="llandudno-cliffside-villa"
-                        value={slug}
-                        onChange={(e) => {
-                          setSlugTouched(true);
-                          setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
-                          clearFieldError("slug");
-                        }}
-                        onBlur={() => setSlug((prev) => slugify(prev).replace(/^-|-$/g, ""))}
-                        aria-invalid={fieldErrors.slug ? true : undefined}
+                        id="property-title"
+                        placeholder="e.g. Llandudno Cliffside Villa"
+                        value={title}
+                        onChange={(e) => handleTitleChange(e.target.value)}
+                        aria-invalid={fieldErrors.title ? true : undefined}
                       />
-                      {fieldErrors.slug ? (
-                        <FieldError errors={[{ message: fieldErrors.slug }]} />
-                      ) : (
-                        <FieldDescription>
-                          Lowercase letters, numbers and dashes only.
-                        </FieldDescription>
-                      )}
+                      <FieldError
+                        errors={
+                          fieldErrors.title ? [{ message: fieldErrors.title }] : undefined
+                        }
+                      />
                     </Field>
 
-                    <Field>
-                      <FieldLabel htmlFor="property-location">Location</FieldLabel>
-                      <Input
-                        id="property-location"
-                        placeholder="e.g. Llandudno, Cape Town"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                      />
-                    </Field>
-                  </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field data-invalid={fieldErrors.slug ? true : undefined}>
+                        <FieldLabel htmlFor="property-slug">
+                          Slug{isNew && !slugTouched ? " (auto-generated)" : ""}
+                        </FieldLabel>
+                        <Input
+                          id="property-slug"
+                          inputMode="url"
+                          className="font-mono"
+                          placeholder="llandudno-cliffside-villa"
+                          value={slug}
+                          onChange={(e) => {
+                            setSlugTouched(true);
+                            setSlug(
+                              e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-")
+                            );
+                            clearFieldError("slug");
+                          }}
+                          onBlur={() =>
+                            setSlug((prev) => slugify(prev).replace(/^-|-$/g, ""))
+                          }
+                          aria-invalid={fieldErrors.slug ? true : undefined}
+                        />
+                        {fieldErrors.slug ? (
+                          <FieldError errors={[{ message: fieldErrors.slug }]} />
+                        ) : (
+                          <FieldDescription>
+                            Lowercase letters, numbers and dashes only.
+                          </FieldDescription>
+                        )}
+                      </Field>
 
-
-
-                  <Field>
-                    <FieldLabel htmlFor="property-description">
-                      Description
-                    </FieldLabel>
-                    <Textarea
-                      id="property-description"
-                      rows={4}
-                      className="resize-y leading-relaxed"
-                      placeholder="Describe your stay, amenities, views, scenery..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                    <FieldDescription>
-                      This appears on the public listing page.
-                    </FieldDescription>
-                  </Field>
-
-                  <Separator />
-
-                  <Field>
-                    <FieldLabel htmlFor="property-images">
-                      Property imagery
-                    </FieldLabel>
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsDragging(true);
-                      }}
-                      onDragLeave={() => setIsDragging(false)}
-                      onDrop={handleDrop}
-                      className={cn(
-                        "relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors",
-                        isDragging
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/60"
-                      )}
-                    >
-                      <input
-                        id="property-images"
-                        type="file"
-                        multiple
-                        accept={ACCEPTED_TYPES.join(",")}
-                        onChange={handleFileUpload}
-                        className="absolute inset-0 size-full cursor-pointer opacity-0"
-                      />
-                      <div className="pointer-events-none flex flex-col items-center gap-1">
-                        <ImagePlus className="size-6 text-primary" />
-                        <span className="text-sm font-medium">
-                          {isDragging
-                            ? "Drop images to upload"
-                            : "Drag & drop files or click to upload"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          PNG, JPG, WEBP up to 10MB each
-                        </span>
-                      </div>
+                      <Field>
+                        <FieldLabel htmlFor="property-location">Location</FieldLabel>
+                        <Input
+                          id="property-location"
+                          placeholder="e.g. Llandudno, Cape Town"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                        />
+                      </Field>
                     </div>
 
-                    {uploadingFiles.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        {uploadingFiles.map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-2"
-                          >
-                            <div className="flex items-center justify-between gap-2 text-xs">
-                              <span className="truncate font-mono">{file.name}</span>
-                              <span className="shrink-0 font-medium text-muted-foreground">
-                                {file.progress}%
-                              </span>
-                            </div>
-                            <Progress value={file.progress} className="h-1" />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {images.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {images.map((url, index) => (
-                          <div
-                            key={url}
-                            className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
-                          >
-                            <Image
-                              src={url || "/placeholder.svg"}
-                              alt={`${title || "Property"} photo ${index + 1}`}
-                              fill
-                              unoptimized
-                              sizes="(max-width: 640px) 33vw, 25vw"
-                              className="object-cover"
-                            />
-                            {index === 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="absolute bottom-1 left-1"
-                              >
-                                Cover
-                              </Badge>
-                            )}
-                            <Button
-                              type="button"
-                              size="icon-xs"
-                              variant="destructive"
-                              onClick={() => handleRemoveImage(url)}
-                              aria-label={`Remove image ${index + 1}`}
-                              className="absolute top-1 right-1 z-10 bg-destructive text-destructive-foreground opacity-100 hover:bg-destructive/90 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                            >
-                              <X />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Field>
-                </FieldGroup>
-                )}
-
-                {activeTab === "pricing" && (
-                  <div className="space-y-8">
-                    <FieldGroup>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <Field data-invalid={fieldErrors.basePrice ? true : undefined}>
-                          <FieldLabel htmlFor="property-price">
-                            {bookingType === "hourly"
-                              ? "Base price per hour"
-                              : "Base price per night"}
-                          </FieldLabel>
-                          <InputGroup>
-                            <InputGroupAddon>
-                              <InputGroupText>R</InputGroupText>
-                            </InputGroupAddon>
-                            <InputGroupInput
-                              id="property-price"
-                              type="number"
-                              min={1}
-                              step={1}
-                              className="font-mono"
-                              placeholder={bookingType === "hourly" ? "250" : "1500"}
-                              value={basePrice}
-                              onChange={(e) => {
-                                setBasePrice(e.target.value);
-                                clearFieldError("basePrice");
-                              }}
-                              aria-invalid={fieldErrors.basePrice ? true : undefined}
-                            />
-                            <InputGroupAddon align="inline-end">
-                              <InputGroupText>ZAR</InputGroupText>
-                            </InputGroupAddon>
-                          </InputGroup>
-                          <FieldError errors={fieldErrors.basePrice ? [{ message: fieldErrors.basePrice }] : undefined} />
-                        </Field>
-
-                        <Field>
-                          <FieldLabel htmlFor="booking-type">Booking type</FieldLabel>
-                          <ToggleGroup
-                            id="booking-type"
-                            variant="outline"
-                            className="w-full"
-                            value={[bookingType]}
-                            onValueChange={(value) => {
-                              const next = value[0] as "nightly" | "hourly" | undefined;
-                              if (next) setBookingType(next);
-                            }}
-                          >
-                            <ToggleGroupItem value="nightly" className="flex-1">
-                              <Moon />
-                              Nightly stay
-                            </ToggleGroupItem>
-                            <ToggleGroupItem value="hourly" className="flex-1">
-                              <Clock />
-                              Hourly slots
-                            </ToggleGroupItem>
-                          </ToggleGroup>
-                        </Field>
-                      </div>
-
-                      {bookingType === "nightly" && (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t border-border/10 pt-4">
-                          <Field>
-                            <FieldLabel htmlFor="property-weekly-discount">
-                              Weekly stay discount (%)
-                            </FieldLabel>
-                            <InputGroup>
-                              <InputGroupInput
-                                id="property-weekly-discount"
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                className="font-mono"
-                                placeholder="10"
-                                value={weeklyDiscount}
-                                onChange={(e) => setWeeklyDiscount(e.target.value)}
-                              />
-                              <InputGroupAddon align="inline-end">
-                                <InputGroupText>% off</InputGroupText>
-                              </InputGroupAddon>
-                            </InputGroup>
-                          </Field>
-
-                          <Field>
-                            <FieldLabel htmlFor="property-monthly-discount">
-                              Monthly stay discount (%)
-                            </FieldLabel>
-                            <InputGroup>
-                              <InputGroupInput
-                                id="property-monthly-discount"
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                className="font-mono"
-                                placeholder="20"
-                                value={monthlyDiscount}
-                                onChange={(e) => setMonthlyDiscount(e.target.value)}
-                              />
-                              <InputGroupAddon align="inline-end">
-                                <InputGroupText>% off</InputGroupText>
-                              </InputGroupAddon>
-                            </InputGroup>
-                          </Field>
-                        </div>
-                      )}
-
-                      {bookingType === "hourly" && (
-                        <FieldSet data-invalid={fieldErrors.slots ? true : undefined} className="space-y-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                              <FieldLegend variant="label">Available time slots</FieldLegend>
-                              <FieldDescription>
-                                Guests can book any of the time slots you activate below.
-                              </FieldDescription>
-                            </div>
-                            <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                              <Badge variant={slots.length > 0 ? "secondary" : "outline"} className="text-xs font-normal">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {slots.length} {slots.length === 1 ? "slot" : "slots"} active
-                              </Badge>
-                              {slots.length > 0 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="xs"
-                                  className="text-xs text-muted-foreground hover:text-destructive h-7 px-2"
-                                  onClick={() => setSlots([])}
-                                >
-                                  Clear all
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* 1-Click Quick Presets */}
-                          <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                              <Zap className="h-3.5 w-3.5 text-amber-500" />
-                              <span>Quick Presets</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                className="h-7 text-xs bg-background hover:bg-muted"
-                                onClick={() => {
-                                  setSlots(["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"]);
-                                  setSlotAlignment("hourly");
-                                  clearFieldError("slots");
-                                }}
-                              >
-                                08:00 – 17:00 (Hourly)
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                className="h-7 text-xs bg-background hover:bg-muted font-medium text-primary border-primary/30"
-                                onClick={() => {
-                                  setSlots(["08:30", "09:30", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30", "17:30"]);
-                                  setSlotAlignment("halfHour");
-                                  clearFieldError("slots");
-                                }}
-                              >
-                                08:30 – 17:30 (Half-hour shift)
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                className="h-7 text-xs bg-background hover:bg-muted"
-                                onClick={() => {
-                                  const morning = visibleSlots.filter((s) => Number.parseInt(s.split(":")[0], 10) < 12);
-                                  setSlots((prev) => Array.from(new Set([...prev, ...morning])).sort());
-                                  clearFieldError("slots");
-                                }}
-                              >
-                                + Add Morning ({slotAlignment === "halfHour" ? "08:30-11:30" : "08:00-11:00"})
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                className="h-7 text-xs bg-background hover:bg-muted"
-                                onClick={() => {
-                                  const afternoon = visibleSlots.filter((s) => Number.parseInt(s.split(":")[0], 10) >= 12);
-                                  setSlots((prev) => Array.from(new Set([...prev, ...afternoon])).sort());
-                                  clearFieldError("slots");
-                                }}
-                              >
-                                + Add Afternoon ({slotAlignment === "halfHour" ? "12:30-17:30" : "12:00-17:00"})
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Alignment / Filter Segmented Switch */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
-                            <span className="text-xs font-semibold text-foreground">
-                              Slot Alignment:
-                            </span>
-                            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg">
-                              <button
-                                type="button"
-                                onClick={() => setSlotAlignment("hourly")}
-                                className={cn(
-                                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer",
-                                  slotAlignment === "hourly"
-                                    ? "bg-background text-foreground shadow-xs"
-                                    : "text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                On the Hour (:00)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSlotAlignment("halfHour")}
-                                className={cn(
-                                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer",
-                                  slotAlignment === "halfHour"
-                                    ? "bg-background text-foreground shadow-xs"
-                                    : "text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                Half-Past (:30)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSlotAlignment("all")}
-                                className={cn(
-                                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer",
-                                  slotAlignment === "all"
-                                    ? "bg-background text-foreground shadow-xs"
-                                    : "text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                All (Every 30m)
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Slot Pills Grouped by AM / PM */}
-                          <div className="space-y-3">
-                            {/* Morning Group */}
-                            {morningSlots.length > 0 && (
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                                    <Sun className="h-3.5 w-3.5 text-amber-500" /> Morning (AM)
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {morningSlots.map((slotTime) => {
-                                    const isSelected = slots.includes(slotTime);
-                                    return (
-                                      <button
-                                        key={slotTime}
-                                        type="button"
-                                        onClick={() => toggleSlot(slotTime)}
-                                        className={cn(
-                                          "px-2.5 py-1 text-xs rounded-md border font-medium transition-all cursor-pointer",
-                                          isSelected
-                                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
-                                            : "bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-                                        )}
-                                      >
-                                        {formatSlotLabel(slotTime)}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Afternoon Group */}
-                            {afternoonSlots.length > 0 && (
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                                    <Sunset className="h-3.5 w-3.5 text-orange-500" /> Afternoon & Evening (PM)
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {afternoonSlots.map((slotTime) => {
-                                    const isSelected = slots.includes(slotTime);
-                                    return (
-                                      <button
-                                        key={slotTime}
-                                        type="button"
-                                        onClick={() => toggleSlot(slotTime)}
-                                        className={cn(
-                                          "px-2.5 py-1 text-xs rounded-md border font-medium transition-all cursor-pointer",
-                                          isSelected
-                                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
-                                            : "bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-                                        )}
-                                      >
-                                        {formatSlotLabel(slotTime)}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Selected in hidden view notice */}
-                            {hiddenSelectedCount > 0 && (
-                              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/40 px-3 py-2 rounded-md">
-                                <span>
-                                  💡 <strong>{hiddenSelectedCount}</strong> other selected slot(s) currently hidden by this alignment filter.
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  size="xs"
-                                  className="h-auto p-0 text-xs"
-                                  onClick={() => setSlotAlignment("all")}
-                                >
-                                  Switch to All view
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-
-                          {fieldErrors.slots ? (
-                            <FieldError errors={[{ message: fieldErrors.slots }]} />
-                          ) : null}
-                        </FieldSet>
-                      )}
-                    </FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="property-description">Description</FieldLabel>
+                      <Textarea
+                        id="property-description"
+                        rows={4}
+                        className="resize-y leading-relaxed"
+                        placeholder="Describe your stay, amenities, views, scenery..."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                      <FieldDescription>
+                        This appears on the public listing page.
+                      </FieldDescription>
+                    </Field>
 
                     <Separator />
 
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground mb-1">
-                          Conditional Mandatory Packages
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Enforce selecting specific package deals when guest booking duration matches a stay or slot criteria.
-                        </p>
+                    <Field>
+                      <FieldLabel htmlFor="property-images">Property imagery</FieldLabel>
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDragging(true);
+                        }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={handleDrop}
+                        className={cn(
+                          "relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-colors",
+                          isDragging
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/60"
+                        )}
+                      >
+                        <input
+                          id="property-images"
+                          type="file"
+                          multiple
+                          accept={ACCEPTED_TYPES.join(",")}
+                          onChange={handleFileUpload}
+                          className="absolute inset-0 size-full cursor-pointer opacity-0"
+                        />
+                        <div className="pointer-events-none flex flex-col items-center gap-1">
+                          <ImagePlus className="size-6 text-primary" />
+                          <span className="text-sm font-medium">
+                            {isDragging
+                              ? "Drop images to upload"
+                              : "Drag & drop files or click to upload"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            PNG, JPG, WEBP up to 10MB each
+                          </span>
+                        </div>
                       </div>
 
-                    {packages.length === 0 ? (
-                      <Alert>
+                      {uploadingFiles.length > 0 && (
+                        <div className="flex flex-col gap-2 mt-3">
+                          {uploadingFiles.map((file) => (
+                            <div
+                              key={file.id}
+                              className="flex flex-col gap-1.5 rounded-xl border bg-muted/40 p-2.5"
+                            >
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate font-mono">{file.name}</span>
+                                <span className="shrink-0 font-medium text-muted-foreground">
+                                  {file.progress}%
+                                </span>
+                              </div>
+                              <Progress value={file.progress} className="h-1.5" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {images.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 mt-4">
+                          {images.map((url, index) => (
+                            <div
+                              key={url}
+                              className="group relative aspect-square overflow-hidden rounded-xl border bg-muted"
+                            >
+                              <Image
+                                src={url || "/placeholder.svg"}
+                                alt={`${title || "Property"} photo ${index + 1}`}
+                                fill
+                                unoptimized
+                                sizes="(max-width: 640px) 33vw, 25vw"
+                                className="object-cover"
+                              />
+                              {index === 0 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="absolute bottom-1.5 left-1.5 text-[10px]"
+                                >
+                                  Cover
+                                </Badge>
+                              )}
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="destructive"
+                                onClick={() => handleRemoveImage(url)}
+                                aria-label={`Remove image ${index + 1}`}
+                                className="absolute top-1.5 right-1.5 z-10 bg-destructive text-destructive-foreground opacity-100 hover:bg-destructive/90 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Field>
+                  </FieldGroup>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AVAILABILITY TAB */}
+            {activeTab === "availability" && (
+              <Card className="rounded-2xl border border-border bg-card shadow-xs">
+                <CardHeader>
+                  <CardTitle>{activeTabMeta?.label}</CardTitle>
+                  <CardDescription>{activeTabMeta?.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  <FieldGroup>
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground mb-1">
+                        Import Calendar
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Sync reservations from external calendars to block availability on
+                        this listing.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="airbnb-ical">Airbnb iCal URL</FieldLabel>
+                        <Input
+                          id="airbnb-ical"
+                          type="url"
+                          placeholder="https://www.airbnb.co.za/calendar/ical/..."
+                          value={airbnbCalendarUrl}
+                          onChange={(e) => setAirbnbCalendarUrl(e.target.value)}
+                        />
+                        <FieldDescription>Optional.</FieldDescription>
+                      </Field>
+
+                      <Field>
+                        <FieldLabel htmlFor="google-ical">
+                          Google Calendar iCal URL
+                        </FieldLabel>
+                        <Input
+                          id="google-ical"
+                          type="url"
+                          placeholder="https://calendar.google.com/calendar/ical/..."
+                          value={googleCalendarUrl}
+                          onChange={(e) => setGoogleCalendarUrl(e.target.value)}
+                        />
+                        <FieldDescription>Optional.</FieldDescription>
+                      </Field>
+                    </div>
+                  </FieldGroup>
+
+                  <div className="space-y-6">
+                    <Separator />
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground mb-1">
+                        Export Calendar
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Sync this listing's bookings with external calendars (like Airbnb or
+                        Google Calendar).
+                      </p>
+                    </div>
+
+                    {isNew ? (
+                      <Alert className="rounded-xl">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>No packages configured</AlertTitle>
+                        <AlertTitle>Export URL not available yet</AlertTitle>
                         <AlertDescription className="text-xs">
-                          You must configure packages for this property first before setting up mandatory rules. Head to the Packages page to add some deals.
+                          You will get an export link once you save and create this property
+                          listing.
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <div className="space-y-4">
-                        {mandatoryRules.length === 0 ? (
-                          <div className="text-center py-6 border border-dashed rounded-xl bg-muted/20">
-                            <p className="text-xs text-muted-foreground mb-2">No mandatory rules configured yet.</p>
+                      <Field>
+                        <FieldLabel htmlFor="export-ical">
+                          Calendar Export URL (.ics)
+                        </FieldLabel>
+                        <InputGroup>
+                          <InputGroupInput
+                            id="export-ical"
+                            type="text"
+                            readOnly
+                            value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/posts/${id}/export`}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                            className="font-mono text-xs bg-muted/30 select-all"
+                          />
+                          <InputGroupAddon align="inline-end" className="p-0">
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => setMandatoryRules([{
-                                packageIds: packages.length > 0 ? [packages[0].id] : [],
-                                packageId: packages.length > 0 ? packages[0].id : "",
-                                operator: "equals",
-                                nights: 1
-                              }])}
+                              className="h-full px-3 text-xs border-l hover:bg-muted cursor-pointer"
+                              onClick={handleCopyExportUrl}
                             >
-                              Add First Rule
+                              {copiedExportUrl ? (
+                                <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                                  <Check className="h-3 w-3" /> Copied
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <Copy className="h-3 w-3" /> Copy Link
+                                </span>
+                              )}
                             </Button>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {mandatoryRules.map((rule, idx) => {
-                              const selectedIds = Array.isArray(rule.packageIds) && rule.packageIds.length > 0
-                                ? rule.packageIds
-                                : (rule.packageId ? [rule.packageId] : []);
-
-                              return (
-                                <div
-                                  key={idx}
-                                  className="flex flex-col gap-4 p-4 border rounded-xl bg-card shadow-xs"
-                                >
-                                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-b pb-3">
-                                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-1 w-full">
-                                      <div className="w-full sm:w-52">
-                                        <FieldLabel className="text-xs mb-1">
-                                          {bookingType === "hourly" ? "If slot count is" : "If stay duration is"}
-                                        </FieldLabel>
-                                        <select
-                                          value={rule.operator}
-                                          onChange={(e) => {
-                                            const next = [...mandatoryRules];
-                                            next[idx].operator = e.target.value as any;
-                                            setMandatoryRules(next);
-                                          }}
-                                          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                                        >
-                                          <option value="equals">exactly (==)</option>
-                                          <option value="greater">greater than (&gt;)</option>
-                                          <option value="less">less than (&lt;)</option>
-                                          <option value="greater_or_equal">greater or equal (&gt;=)</option>
-                                          <option value="less_or_equal">less or equal (&lt;=)</option>
-                                        </select>
-                                      </div>
-
-                                      <div className="w-full sm:w-28">
-                                        <FieldLabel className="text-xs mb-1">
-                                          {bookingType === "hourly" ? "Slots" : "Nights"}
-                                        </FieldLabel>
-                                        <Input
-                                          type="number"
-                                          min={1}
-                                          value={rule.nights}
-                                          onChange={(e) => {
-                                            const next = [...mandatoryRules];
-                                            next[idx].nights = Math.max(1, parseInt(e.target.value) || 1);
-                                            setMandatoryRules(next);
-                                          }}
-                                          className="w-full"
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive hover:bg-destructive/10 hover:text-destructive self-end sm:self-center text-xs"
-                                      onClick={() => setMandatoryRules(mandatoryRules.filter((_, i) => i !== idx))}
-                                    >
-                                      Remove Rule
-                                    </Button>
-                                  </div>
-
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <FieldLabel className="text-xs">
-                                        Allowed Mandatory Packages <span className="text-muted-foreground font-normal">(guests must pick from selected)</span>
-                                      </FieldLabel>
-                                      <span className="text-[11px] font-medium text-muted-foreground">
-                                        {selectedIds.length} of {packages.length} selected
-                                      </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2.5 rounded-lg border bg-muted/20">
-                                      {packages.map((pkg) => {
-                                        const isChecked = selectedIds.includes(pkg.id);
-                                        const isPkgPro = Boolean(pkg.isPro || pkg.category === "pro");
-                                        return (
-                                          <label
-                                            key={pkg.id}
-                                            className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer select-none transition-all ${
-                                              isChecked
-                                                ? "bg-primary/10 border-primary text-foreground font-medium shadow-xs"
-                                                : "bg-background border-border text-muted-foreground hover:bg-accent/40"
-                                            }`}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={(e) => {
-                                                const next = [...mandatoryRules];
-                                                let currentIds = next[idx].packageIds && next[idx].packageIds!.length > 0
-                                                  ? [...next[idx].packageIds!]
-                                                  : (next[idx].packageId ? [next[idx].packageId!] : []);
-                                                if (e.target.checked) {
-                                                  currentIds = Array.from(new Set([...currentIds, pkg.id]));
-                                                } else {
-                                                  currentIds = currentIds.filter((id) => id !== pkg.id);
-                                                }
-                                                next[idx].packageIds = currentIds;
-                                                next[idx].packageId = currentIds[0] || "";
-                                                setMandatoryRules(next);
-                                              }}
-                                              className="mt-0.5 rounded border-input text-primary focus:ring-primary h-4 w-4 shrink-0"
-                                            />
-                                            <div className="flex flex-col min-w-0 flex-1">
-                                              <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-xs font-semibold truncate text-foreground">{pkg.name}</span>
-                                                {isPkgPro && (
-                                                  <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
-                                                    PRO
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <span className="text-[11px] text-muted-foreground">
-                                                R {pkg.price.toLocaleString()} • {pkg.category || "standard"}
-                                              </span>
-                                            </div>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                    {selectedIds.length === 0 && (
-                                      <p className="text-[11px] text-destructive mt-1.5 font-medium">
-                                        ⚠️ Select at least one mandatory package for this rule.
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            <div className="flex justify-end pt-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setMandatoryRules([
-                                  ...mandatoryRules,
-                                  {
-                                    packageIds: packages.length > 0 ? [packages[0].id] : [],
-                                    packageId: packages.length > 0 ? packages[0].id : "",
-                                    operator: "equals",
-                                    nights: 1
-                                  }
-                                ])}
-                              >
-                                Add Rule
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                          </InputGroupAddon>
+                        </InputGroup>
+                        <FieldDescription>
+                          Copy this URL and import it into other booking channel platforms (e.g.
+                          under Airbnb's "Export Calendar" settings).
+                        </FieldDescription>
+                      </Field>
                     )}
                   </div>
-                </div>
-                )}
-
-                {activeTab === "availability" && (
-                  <div className="space-y-8">
-                    <FieldGroup>
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground mb-1">
-                          Import Calendar
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Sync reservations from external calendars to block availability on this listing.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <Field>
-                          <FieldLabel htmlFor="airbnb-ical">
-                            Airbnb iCal URL
-                          </FieldLabel>
-                          <Input
-                            id="airbnb-ical"
-                            type="url"
-                            placeholder="https://www.airbnb.co.za/calendar/ical/..."
-                            value={airbnbCalendarUrl}
-                            onChange={(e) => setAirbnbCalendarUrl(e.target.value)}
-                          />
-                          <FieldDescription>Optional.</FieldDescription>
-                        </Field>
-
-                        <Field>
-                          <FieldLabel htmlFor="google-ical">
-                            Google Calendar iCal URL
-                          </FieldLabel>
-                          <Input
-                            id="google-ical"
-                            type="url"
-                            placeholder="https://calendar.google.com/calendar/ical/..."
-                            value={googleCalendarUrl}
-                            onChange={(e) => setGoogleCalendarUrl(e.target.value)}
-                          />
-                          <FieldDescription>Optional.</FieldDescription>
-                        </Field>
-                      </div>
-                    </FieldGroup>
-
-                    <div className="space-y-6">
-                      <Separator />
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground mb-1">
-                          Export Calendar
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Sync this listing's bookings with external calendars (like Airbnb or Google Calendar).
-                        </p>
-                      </div>
-
-                      {isNew ? (
-                        <Alert>
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertTitle>Export URL not available yet</AlertTitle>
-                          <AlertDescription className="text-xs">
-                            You will get an export link once you save and create this property listing.
-                          </AlertDescription>
-                        </Alert>
-                      ) : (
-                        <Field>
-                          <FieldLabel htmlFor="export-ical">
-                            Calendar Export URL (.ics)
-                          </FieldLabel>
-                          <InputGroup>
-                            <InputGroupInput
-                              id="export-ical"
-                              type="text"
-                              readOnly
-                              value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/posts/${id}/export`}
-                              onClick={(e) => (e.target as HTMLInputElement).select()}
-                              className="font-mono text-xs bg-muted/30 select-all"
-                            />
-                            <InputGroupAddon align="inline-end" className="p-0">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-full px-3 text-xs border-l hover:bg-muted"
-                                onClick={handleCopyExportUrl}
-                              >
-                                {copiedExportUrl ? (
-                                  <span className="flex items-center gap-1 text-success">
-                                    <Check className="h-3 w-3" /> Copied
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-1">
-                                    <Copy className="h-3 w-3" /> Copy Link
-                                  </span>
-                                )}
-                              </Button>
-                            </InputGroupAddon>
-                          </InputGroup>
-                          <FieldDescription>
-                            Copy this URL and import it into other booking channel platforms (e.g. under Airbnb's "Export Calendar" settings).
-                          </FieldDescription>
-                        </Field>
-                      )}
-                    </div>
-                  </div>
-                )}
-            </CardContent>
-
-              <CardFooter className="flex-col gap-3 border-t sm:flex-row">
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={submitDisabled}
-                  className="w-full sm:flex-1"
-                >
-                  {isSubmitting && <Spinner data-icon="inline-start" />}
-                  {isUploading
-                    ? "Waiting for uploads..."
-                    : isSubmitting
-                      ? isNew
-                        ? "Creating listing..."
-                        : "Saving changes..."
-                      : isNew
-                        ? "Create Listing"
-                        : "Save Listing Changes"}
-                </Button>
-
-                {!isNew && (
-                  <AlertDialog>
-                    <AlertDialogTrigger
-                      render={
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="destructive"
-                          disabled={isSubmitting}
-                          className="w-full sm:w-auto"
-                        />
-                      }
-                    >
-                      <Trash2 data-icon="inline-start" />
-                      Delete Listing
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this listing?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This permanently removes the property and every package
-                          associated with it. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onClick={handleDelete}
-                        >
-                          Delete listing
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </CardFooter>
-            </Card>
-          </form>
-        ) : (
-          <Empty className="rounded-xl border bg-card">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <AlertTriangle />
-              </EmptyMedia>
-              <EmptyTitle>Listing unavailable</EmptyTitle>
-              <EmptyDescription>
-                Could not retrieve property metadata for this listing.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/admin/properties" />}
-              >
-                Back to Listings
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </form>
       </div>
+
+      {/* Fixed Bottom Save & Delete Action Bar */}
+      <SaveBar
+        isNew={isNew}
+        formId="property-form"
+        saveState={saveState}
+        disabled={isUploading || isSubmitting}
+        onDelete={() => setDeleteDialogOpen(true)}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      {!isNew && (
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {title ? `"${title}"` : "this listing"}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes the property, its pricing and package rules.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  handleDelete();
+                }}
+              >
+                Delete listing
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
