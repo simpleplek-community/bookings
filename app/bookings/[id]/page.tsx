@@ -74,6 +74,7 @@ interface Booking {
   paymentStatus: string;
   token?: string;
   guests?: string[];
+  guestsDetails?: Record<string, { name: string; email: string }>;
 }
 
 function BookingDetailsContent({ id }: { id: string }) {
@@ -482,16 +483,30 @@ function BookingDetailsContent({ id }: { id: string }) {
 
                 {booking.guests && booking.guests.length > 0 ? (
                   <ul className="flex flex-wrap gap-2">
-                    {booking.guests.map((gUid, idx) => (
-                      <li key={idx}>
-                        <span className="inline-flex items-center gap-1.5 rounded-lg border bg-muted/50 px-3 py-1.5 text-sm">
-                          <UserIcon className="size-3.5 text-muted-foreground" />
-                          <span className="font-mono text-xs">
-                            {gUid === user.uid ? "You (owner)" : `${gUid.substring(0, 8)}...`}
+                    {booking.guests.map((gUid, idx) => {
+                      const details = booking.guestsDetails?.[gUid];
+                      const guestName =
+                        details?.name ||
+                        (gUid === user.uid
+                          ? user.displayName || user.email?.split("@")[0] || "You"
+                          : details?.email || `${gUid.substring(0, 8)}...`);
+
+                      const label =
+                        gUid === user.uid && guestName !== "You"
+                          ? `${guestName} (You)`
+                          : guestName;
+
+                      return (
+                        <li key={idx}>
+                          <span className="inline-flex items-center gap-1.5 rounded-lg border bg-muted/50 px-3 py-1.5 text-sm">
+                            <UserIcon className="size-3.5 text-muted-foreground" />
+                            <span className="text-xs">
+                              {label}
+                            </span>
                           </span>
-                        </span>
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <div className="rounded-lg border border-dashed p-5 text-center">
