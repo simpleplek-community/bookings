@@ -402,7 +402,7 @@ function BookingDetailsContent({ id }: { id: string }) {
                   <div className="flex items-center gap-1.5 font-medium">
                     <span>{bookedPackage?.name || booking.packageId}</span>
                     {bookedPackage && isPackagePro(bookedPackage) && (
-                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold uppercase">
+                      <Badge className="bg-secondary/15 text-secondary border border-secondary/30 text-[9px] font-bold uppercase">
                         Pro
                       </Badge>
                     )}
@@ -543,7 +543,7 @@ function BookingDetailsContent({ id }: { id: string }) {
                   </CardDescription>
                 </div>
                 {isProUser && proAddons.length > 0 && (
-                  <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold tracking-wider uppercase">
+                  <Badge className="bg-secondary/15 text-secondary border border-secondary/30 text-[10px] font-bold tracking-wider uppercase">
                     Pro Member Access
                   </Badge>
                 )}
@@ -571,14 +571,14 @@ function BookingDetailsContent({ id }: { id: string }) {
                           className={cn(
                             "flex flex-col gap-3 rounded-lg border p-4 transition-colors",
                             isProAddonItem
-                              ? "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/60"
+                              ? "border-secondary/40 bg-secondary/5 hover:border-secondary/60"
                               : "border-border bg-muted/50 hover:border-primary/50"
                           )}
                         >
                           <div className="flex flex-col gap-1.5">
                             <div className="flex items-center gap-2">
                               {isProAddonItem && (
-                                <Badge className="bg-amber-500 hover:bg-amber-500 text-black border-none font-bold text-[9px] uppercase flex items-center gap-1">
+                                <Badge className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-none font-bold text-[9px] uppercase flex items-center gap-1">
                                   <SparklesIcon className="size-2.5" />
                                   Pro Exclusive
                                 </Badge>
@@ -600,7 +600,7 @@ function BookingDetailsContent({ id }: { id: string }) {
                               size="sm"
                               onClick={() => handlePurchaseAddon(addon)}
                               disabled={purchasingAddonId === addon.id}
-                              className={isProAddonItem ? "bg-amber-500 hover:bg-amber-600 text-black font-semibold" : undefined}
+                              className={isProAddonItem ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold" : undefined}
                             >
                               {purchasingAddonId === addon.id && (
                                 <Spinner className="size-3.5" data-icon="inline-start" />

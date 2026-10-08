@@ -397,9 +397,9 @@ function BookingsCheckoutContent() {
   if (propertyId && property?.isPro && !isProUser) {
     return (
       <div className="mx-auto w-full max-w-md px-4 py-16">
-        <Empty className="rounded-xl border border-amber-500/30 bg-amber-500/5">
+        <Empty className="rounded-xl border border-secondary/30 bg-secondary/5">
           <EmptyHeader>
-            <EmptyMedia variant="icon" className="text-amber-500">
+            <EmptyMedia variant="icon" className="text-secondary">
               <LockIcon />
             </EmptyMedia>
             <EmptyTitle>Pro Exclusive Property</EmptyTitle>
@@ -408,7 +408,7 @@ function BookingsCheckoutContent() {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent className="w-full space-y-2">
-            <Button className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" nativeButton={false} render={<Link href="/subscribe" />}>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground font-bold" nativeButton={false} render={<Link href="/subscribe" />}>
               Upgrade to Pro
             </Button>
             <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/" />}>
@@ -997,7 +997,7 @@ function BookingsCheckoutContent() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-heading text-sm font-medium">{pkg.name}</span>
                           {isPkgPro && (
-                            <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase">
+                            <Badge className="border-secondary/40 bg-secondary/10 text-secondary text-[10px] font-bold uppercase">
                               Pro Exclusive
                             </Badge>
                           )}
