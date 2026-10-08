@@ -357,21 +357,21 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     );
   }
 
-const PRO_PERKS = [
-  "Access private off-plan retreats and premium listings",
-  "Exclusive member-only stay packages & discounts",
-  "Real-time booking and calendar synchronization",
-];
+  const PRO_PERKS = [
+    "Access private off-plan retreats and premium listings",
+    "Exclusive member-only stay packages & discounts",
+    "Real-time booking and calendar synchronization",
+  ];
 
-const PRO_HERO_IMAGE =
-  "https://cdn.magicpatterns.com/patterns/generated-images/b3c0153b-648c-47ef-8efe-407cfbac2037.jpg";
+  const PRO_HERO_IMAGE =
+    "https://cdn.magicpatterns.com/patterns/generated-images/b3c0153b-648c-47ef-8efe-407cfbac2037.jpg";
 
   const isOwner = Boolean(user && property?.hostId && (user.uid === property.hostId || user.email === property.hostId));
   const isProBlocked = isProForbidden || Boolean(property?.isPro && !isProUser && !isOwner);
 
   if (isProBlocked) {
     return (
-      <main className="grid min-h-[calc(100vh-4rem)] w-full bg-[lab(98.6538_-1.33115_-0.276947)] dark:bg-background text-[lab(16.888_-11.8894_-1.91954)] dark:text-foreground text-base leading-6 font-['Geist','Geist_Fallback',ui-sans-serif,system-ui,sans-serif] lg:grid-cols-2">
+      <main className="grid min-h-[calc(100vh-4rem)] w-full bg-background text-foreground text-base leading-6 font-sans lg:grid-cols-2">
         <div className="relative h-64 w-full overflow-hidden sm:h-80 lg:sticky lg:top-0 lg:h-screen">
           <img
             src={PRO_HERO_IMAGE}
@@ -384,38 +384,38 @@ const PRO_HERO_IMAGE =
           <div className="w-full max-w-[592px]">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 text-sm font-medium opacity-70 transition-opacity duration-150 hover:opacity-100"
+              className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-opacity duration-150 hover:text-foreground"
             >
               <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
               Back to all destinations
             </Link>
 
             <div className="mt-10">
-              <div className="flex h-12 w-12 items-center justify-center rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-card">
+              <div className="flex h-12 w-12 items-center justify-center rounded-md border border-secondary/30 bg-secondary/10 text-secondary">
                 <LockIcon className="h-5 w-5" aria-hidden="true" />
               </div>
 
               <div className="mt-6">
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-secondary">
                   <SparklesIcon className="h-4 w-4" aria-hidden="true" />
                   Pro Member Exclusive
                 </span>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-foreground">
                   Pro Exclusive Destination
                 </h1>
-                <p className="mt-4 opacity-70">
+                <p className="mt-4 text-muted-foreground">
                   This property is reserved exclusively for Simpleplek Pro members. Non-Pro members
                   cannot view listing details, photos, pricing, or availability calendars.
                 </p>
               </div>
 
-              <div className="mt-8 border-t border-black/10 dark:border-white/10 pt-6">
-                <span className="text-sm font-medium">Pro Membership Perks</span>
+              <div className="mt-8 border-t border-border pt-6">
+                <span className="text-sm font-medium text-foreground">Pro Membership Perks</span>
                 <ul className="mt-4 space-y-3">
                   {PRO_PERKS.map((perk) => (
                     <li key={perk} className="flex items-start gap-3">
-                      <CheckIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                      <span className="opacity-80">{perk}</span>
+                      <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                      <span className="text-muted-foreground">{perk}</span>
                     </li>
                   ))}
                 </ul>
@@ -425,7 +425,7 @@ const PRO_HERO_IMAGE =
                 {user ? (
                   <Link
                     href="/subscribe"
-                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[lab(16.888_-11.8894_-1.91954)] dark:bg-primary dark:text-primary-foreground px-4 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary text-primary-foreground px-4 text-sm font-medium transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                   >
                     <SparklesIcon className="h-4 w-4" aria-hidden="true" />
                     Upgrade to Pro Member
@@ -435,14 +435,14 @@ const PRO_HERO_IMAGE =
                   <>
                     <Link
                       href={`/login?redirect=/posts/${slug}`}
-                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[lab(16.888_-11.8894_-1.91954)] dark:bg-primary dark:text-primary-foreground px-4 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary text-primary-foreground px-4 text-sm font-medium transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                     >
                       Sign in with Pro Account
                       <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
                     </Link>
                     <Link
                       href="/subscribe"
-                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-black/15 dark:border-white/15 bg-white dark:bg-card px-4 text-sm font-medium transition-colors duration-150 hover:bg-black/5 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 px-4 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                     >
                       <SparklesIcon className="h-4 w-4" aria-hidden="true" />
                       Become a Pro Member
