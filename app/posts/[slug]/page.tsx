@@ -357,97 +357,103 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     );
   }
 
+const PRO_PERKS = [
+  "Access private off-plan retreats and premium listings",
+  "Exclusive member-only stay packages & discounts",
+  "Real-time booking and calendar synchronization",
+];
+
+const PRO_HERO_IMAGE =
+  "https://cdn.magicpatterns.com/patterns/generated-images/b3c0153b-648c-47ef-8efe-407cfbac2037.jpg";
+
   const isOwner = Boolean(user && property?.hostId && (user.uid === property.hostId || user.email === property.hostId));
   const isProBlocked = isProForbidden || Boolean(property?.isPro && !isProUser && !isOwner);
 
   if (isProBlocked) {
     return (
-      <div className="mx-auto flex min-h-[calc(100vh-12rem)] max-w-2xl flex-col items-center justify-center px-4 py-12 text-center font-sans sm:px-6 lg:px-8">
-        <div className="mb-6 flex w-full items-start justify-start">
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}>
-            <ArrowLeftIcon data-icon="inline-start" />
-            Back to all destinations
-          </Button>
+      <main className="grid min-h-[calc(100vh-4rem)] w-full bg-[lab(98.6538_-1.33115_-0.276947)] dark:bg-background text-[lab(16.888_-11.8894_-1.91954)] dark:text-foreground text-base leading-6 font-['Geist','Geist_Fallback',ui-sans-serif,system-ui,sans-serif] lg:grid-cols-2">
+        <div className="relative h-64 w-full overflow-hidden sm:h-80 lg:sticky lg:top-0 lg:h-screen">
+          <img
+            src={PRO_HERO_IMAGE}
+            alt="Secluded clifftop retreat villa with an infinity pool overlooking the ocean at dusk"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         </div>
 
-        <Card className="relative overflow-hidden border-amber-500/30 bg-gradient-to-b from-card via-card/95 to-amber-500/[0.04] p-6 sm:p-10 shadow-2xl rounded-3xl w-full">
-          <div className="absolute -top-24 -right-24 size-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+        <section className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-16">
+          <div className="w-full max-w-[592px]">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm font-medium opacity-70 transition-opacity duration-150 hover:opacity-100"
+            >
+              <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
+              Back to all destinations
+            </Link>
 
-          <div className="relative flex flex-col items-center gap-6">
-            <div className="flex size-16 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30 shadow-inner">
-              <LockIcon className="size-8" />
-            </div>
+            <div className="mt-10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-card">
+                <LockIcon className="h-5 w-5" aria-hidden="true" />
+              </div>
 
-            <div className="flex flex-col items-center gap-2">
-              <Badge className="bg-amber-500 hover:bg-amber-500 text-black font-bold uppercase text-[11px] tracking-wider flex items-center gap-1.5 shadow-sm border-none">
-                <SparklesIcon className="size-3.5" />
-                Pro Member Exclusive
-              </Badge>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                Pro Exclusive Destination
-              </h1>
-              <p className="max-w-md text-sm leading-relaxed text-muted-foreground text-pretty">
-                This property is reserved exclusively for Simpleplek Pro members. Non-Pro members cannot view listing details, photos, pricing, or availability calendars.
-              </p>
-            </div>
+              <div className="mt-6">
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+                  <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+                  Pro Member Exclusive
+                </span>
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                  Pro Exclusive Destination
+                </h1>
+                <p className="mt-4 opacity-70">
+                  This property is reserved exclusively for Simpleplek Pro members. Non-Pro members
+                  cannot view listing details, photos, pricing, or availability calendars.
+                </p>
+              </div>
 
-            <div className="w-full rounded-2xl border border-amber-500/20 bg-background/60 p-4 text-left">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-2">
-                Pro Membership Perks
-              </span>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Access private off-plan retreats and premium listings</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Exclusive member-only stay packages &amp; discounts</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Real-time booking and calendar synchronization</span>
-                </li>
-              </ul>
-            </div>
+              <div className="mt-8 border-t border-black/10 dark:border-white/10 pt-6">
+                <span className="text-sm font-medium">Pro Membership Perks</span>
+                <ul className="mt-4 space-y-3">
+                  {PRO_PERKS.map((perk) => (
+                    <li key={perk} className="flex items-start gap-3">
+                      <CheckIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                      <span className="opacity-80">{perk}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            <div className="flex w-full flex-col gap-3 pt-2">
-              {user ? (
-                <Button
-                  className="h-11 w-full bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm shadow-md"
-                  nativeButton={false}
-                  render={<Link href="/subscribe" />}
-                >
-                  <SparklesIcon data-icon="inline-start" className="size-4" />
-                  Upgrade to Pro to unlock
-                  <ArrowRightIcon data-icon="inline-end" className="size-4" />
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    className="h-11 w-full bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm shadow-md"
-                    nativeButton={false}
-                    render={<Link href={`/login?redirect=/posts/${slug}`} />}
+              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                {user ? (
+                  <Link
+                    href="/subscribe"
+                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[lab(16.888_-11.8894_-1.91954)] dark:bg-primary dark:text-primary-foreground px-4 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                   >
-                    Sign in with Pro Account
-                    <ArrowRightIcon data-icon="inline-end" className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-11 w-full border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
-                    nativeButton={false}
-                    render={<Link href="/subscribe" />}
-                  >
-                    <SparklesIcon data-icon="inline-start" className="size-4" />
-                    Become a Pro Member
-                  </Button>
-                </>
-              )}
+                    <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+                    Upgrade to Pro Member
+                    <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href={`/login?redirect=/posts/${slug}`}
+                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[lab(16.888_-11.8894_-1.91954)] dark:bg-primary dark:text-primary-foreground px-4 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    >
+                      Sign in with Pro Account
+                      <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                    <Link
+                      href="/subscribe"
+                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-black/15 dark:border-white/15 bg-white dark:bg-card px-4 text-sm font-medium transition-colors duration-150 hover:bg-black/5 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    >
+                      <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+                      Become a Pro Member
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </Card>
-      </div>
+        </section>
+      </main>
     );
   }
 
