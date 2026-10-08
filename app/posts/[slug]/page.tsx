@@ -534,7 +534,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                 </div>
               )}
 
-              <Badge variant="secondary" className="absolute top-3 left-3">
+              <Badge variant="secondary" className="absolute top-3 left-3 bg-secondary/20 text-secondary-foreground font-bold uppercase text-[10px] flex items-center gap-1 shadow-xs border-1 border-secondary">
                 {property.bookingType === "hourly" ? "Hourly slot" : "Nightly stay"}
               </Badge>
             </div>

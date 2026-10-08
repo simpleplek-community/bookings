@@ -78,7 +78,7 @@ function HomePageContent() {
     if (typeof window === "undefined") return;
     const hostname = window.location.hostname;
     const parts = hostname.split(".");
-    
+
     let sub: string | null = null;
     if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
       if (parts.length > 1 && parts[0] !== "localhost" && parts[0] !== "www") {
@@ -87,7 +87,7 @@ function HomePageContent() {
     } else if (parts.length > 2 && parts[0] !== "www") {
       sub = parts[0];
     }
-    
+
     if (sub) {
       setSubdomain(sub);
       fetch(`/api/host/profile?subdomain=${sub}`)
@@ -616,7 +616,7 @@ function HomePageContent() {
                       )}
 
                       <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
-                        <Badge variant="secondary" className="shadow-xs">
+                        <Badge className="bg-secondary/20 text-secondary-foreground font-bold uppercase text-[10px] flex items-center gap-1 shadow-xs border-1 border-secondary">
                           {isHourly ? "Hourly slot" : "Nightly stay"}
                         </Badge>
                         {p.isPro && (
