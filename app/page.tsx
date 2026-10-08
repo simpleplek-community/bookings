@@ -620,7 +620,7 @@ function HomePageContent() {
                           {isHourly ? "Hourly slot" : "Nightly stay"}
                         </Badge>
                         {p.isPro && (
-                          <Badge className="bg-amber-500 text-black font-bold uppercase text-[10px] flex items-center gap-1 shadow-xs border-transparent">
+                          <Badge className="bg-secondary text-secondary-foreground font-bold uppercase text-[10px] flex items-center gap-1 shadow-xs border-transparent">
                             <SparklesIcon className="size-3" />
                             Pro Only
                           </Badge>

@@ -570,7 +570,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                   {property.title}
                 </CardTitle>
                 {property.isPro && (
-                  <Badge className="bg-amber-500 text-black font-bold uppercase text-xs flex items-center gap-1 shadow-xs border-transparent">
+                  <Badge className="bg-secondary text-secondary-foreground font-bold uppercase text-xs flex items-center gap-1 shadow-xs border-transparent">
                     <SparklesIcon className="size-3.5" />
                     Pro Exclusive Property
                   </Badge>
@@ -625,7 +625,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                 Available packages
               </CardTitle>
               {isProUser && packages.some((p) => p.isPro || p.category === "pro") && (
-                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold tracking-wider uppercase">
+                <Badge className="bg-secondary/15 text-secondary border border-secondary/30 text-[10px] font-bold tracking-wider uppercase">
                   Pro Member Access
                 </Badge>
               )}
@@ -656,14 +656,14 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                               className={cn(
                                 "flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors",
                                 isProPackage
-                                  ? "border-amber-500/40 bg-amber-500/5 shadow-sm"
+                                  ? "border-secondary/40 bg-secondary/5 shadow-sm"
                                   : "border-border bg-muted/40"
                               )}
                             >
                               <div className="flex flex-col items-start gap-1.5">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {isProPackage && (
-                                    <Badge className="bg-amber-500 hover:bg-amber-500 text-black border-none font-bold text-[10px] uppercase flex items-center gap-1">
+                                    <Badge className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-none font-bold text-[10px] uppercase flex items-center gap-1">
                                       <SparklesIcon className="size-3" />
                                       Pro Exclusive
                                     </Badge>

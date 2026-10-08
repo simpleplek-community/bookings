@@ -49,7 +49,7 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
 
                     <div className="flex items-center gap-1.5">
                         {property.isPro && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-black backdrop-blur-sm shadow-xs">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-secondary-foreground backdrop-blur-sm shadow-xs">
                                 <SparklesIcon className="size-3" />
                                 Pro Only
                             </span>
