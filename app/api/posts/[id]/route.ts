@@ -7,10 +7,37 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const viewerId = searchParams.get("userId") || request.headers.get("x-user-id") || undefined;
+    const viewerEmail = searchParams.get("email") || request.headers.get("x-user-email") || undefined;
+
     const property = await getProperty(id);
     if (!property) {
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
+
+    if (property.isPro) {
+      // Check if viewer is owner, admin, or pro member
+      const isOwner = Boolean(viewerId && property.hostId && (viewerId === property.hostId || viewerEmail === property.hostId));
+      let isProViewer = false;
+      if (viewerId || viewerEmail) {
+        const viewerProfile = viewerId ? await getUserProfile(viewerId) : null;
+        const emailToCheck = viewerEmail || viewerProfile?.email || "";
+        const isViewerAdmin = await isUserAdmin(viewerId || "", emailToCheck);
+        if (viewerProfile?.plan === "pro" || isViewerAdmin) {
+          isProViewer = true;
+        }
+      }
+
+      if (!isOwner && !isProViewer) {
+        return NextResponse.json({
+          success: false,
+          error: "This listing is exclusively available to Pro members. Upgrade to Pro to view.",
+          isPro: true
+        }, { status: 403 });
+      }
+    }
+
     return NextResponse.json({ success: true, data: property });
   } catch (err: any) {
     console.error("GET /api/posts/[id] error:", err);

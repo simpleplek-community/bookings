@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createEstimate, updateEstimate } from "@/lib/firebase";
+import { createEstimate, updateEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +18,26 @@ export async function POST(request: NextRequest) {
     // Validation
     if (!propertyId || !customerName || !customerEmail || !customerId || !fromDate || !toDate || total === undefined) {
       return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
+    }
+
+    const property = await getProperty(propertyId);
+    if (!property) {
+      return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
+    }
+
+    // Verify Pro property booking entitlement
+    if (property.isPro) {
+      const isOwner = Boolean(property.hostId && customerId && property.hostId === customerId);
+      const profile = customerId ? await getUserProfile(customerId) : null;
+      const isAdmin = await isUserAdmin(customerId, customerEmail);
+      const isPro = profile?.plan === "pro" || isAdmin || isOwner;
+      if (!isPro) {
+        return NextResponse.json({
+          success: false,
+          error: "This property is exclusively available to Pro members. Upgrade to Pro to reserve.",
+          isPro: true
+        }, { status: 403 });
+      }
     }
 
     const start = new Date(fromDate);

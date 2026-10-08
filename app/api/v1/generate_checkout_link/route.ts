@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPackage, getProjectId, listPackageDocIds, getBooking, getUserProfile, isUserAdmin } from "@/lib/firebase";
+import { getPackage, getProjectId, listPackageDocIds, getBooking, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 import { parsePriceToCents, createCheckout } from "@/lib/yoco";
 
 const PACKAGE_LABELS: Record<string, string> = {
@@ -145,6 +145,31 @@ async function processGenerateRequest(
           },
           { status: 404, headers: corsHeaders() }
         );
+      }
+    }
+
+    // Verify Pro property entitlement if checking out an estimate for a Pro property
+    if (estimateId) {
+      const est = await getEstimate(estimateId);
+      if (est?.propertyId) {
+        const prop = await getProperty(est.propertyId);
+        if (prop?.isPro) {
+          let isPro = false;
+          const targetUid = userId || est.customerId;
+          const targetEmail = userEmail || est.customerEmail;
+          if (targetUid || targetEmail) {
+            const profile = targetUid ? await getUserProfile(targetUid) : null;
+            const admin = await isUserAdmin(targetUid || "", targetEmail || "");
+            const isOwner = Boolean(prop.hostId && targetUid && prop.hostId === targetUid);
+            if (profile?.plan === "pro" || admin || isOwner) isPro = true;
+          }
+          if (!isPro) {
+            return NextResponse.json(
+              { status: false, data: "This property is exclusively available to Pro members. Upgrade to Pro to complete booking." },
+              { status: 403, headers: corsHeaders() }
+            );
+          }
+        }
       }
     }
 

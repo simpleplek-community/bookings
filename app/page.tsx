@@ -206,6 +206,7 @@ function HomePageContent() {
         if (subdomain) queryParams.set("subdomain", subdomain);
         if (queryHostId) queryParams.set("hostId", queryHostId);
         if (user?.uid) queryParams.set("userId", user.uid);
+        if (user?.email) queryParams.set("email", user.email);
 
         const url = `/api/posts${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
 

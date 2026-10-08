@@ -55,6 +55,7 @@ interface Property {
   weeklyDiscount?: number;
   monthlyDiscount?: number;
   mandatoryRules?: MandatoryRule[];
+  isPro?: boolean;
 }
 
 interface PackageData {
@@ -392,6 +393,33 @@ function BookingsCheckoutContent() {
 
 
 
+  // 3. Pro property restricted state (for non-pro users)
+  if (propertyId && property?.isPro && !isProUser) {
+    return (
+      <div className="mx-auto w-full max-w-md px-4 py-16">
+        <Empty className="rounded-xl border border-amber-500/30 bg-amber-500/5">
+          <EmptyHeader>
+            <EmptyMedia variant="icon" className="text-amber-500">
+              <LockIcon />
+            </EmptyMedia>
+            <EmptyTitle>Pro Exclusive Property</EmptyTitle>
+            <EmptyDescription>
+              This property is exclusively available to Pro members. Please upgrade your subscription plan to reserve this listing.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="w-full space-y-2">
+            <Button className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" nativeButton={false} render={<Link href="/subscribe" />}>
+              Upgrade to Pro
+            </Button>
+            <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/" />}>
+              Back to properties
+            </Button>
+          </EmptyContent>
+        </Empty>
+      </div>
+    );
+  }
+
   const handleUpdateDates = async (start: string, end: string) => {
     if (!user) return;
 
@@ -427,6 +455,11 @@ function BookingsCheckoutContent() {
   const handleBookNow = async () => {
     if (dateConflict) {
       setCheckoutError("Please resolve the date conflict before proceeding.");
+      return;
+    }
+
+    if (property?.isPro && !isProUser) {
+      setCheckoutError("This property is exclusively available to Pro subscribers. Upgrade to Pro to book this listing.");
       return;
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use, Suspense } from "react";
+import React, { useState, useEffect, useCallback, use, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, AuthProvider } from "@/components/auth";
@@ -56,6 +56,7 @@ interface Property {
   monthlyDiscount?: number;
   mandatoryRules?: MandatoryRule[];
   isPro?: boolean;
+  hostId?: string;
 }
 
 interface PackageData {
@@ -84,6 +85,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
   const [latestEstimate, setLatestEstimate] = useState<any | null>(null);
   const [userPlan, setUserPlan] = useState<string>("standard");
   const [isProUser, setIsProUser] = useState<boolean>(false);
+  const [isProForbidden, setIsProForbidden] = useState<boolean>(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingDates, setIsSavingDates] = useState(false);
@@ -97,13 +99,27 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
   const [bookings, setBookings] = useState<any[]>([]);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
-  const loadPropertyData = async () => {
+  const loadPropertyData = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const propRes = await fetch(`/api/posts/${slug}`);
+      const queryParams = new URLSearchParams();
+      if (user?.uid) queryParams.set("userId", user.uid);
+      if (user?.email) queryParams.set("email", user.email);
+
+      const url = `/api/posts/${slug}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+      const propRes = await fetch(url);
       const propResult = await propRes.json();
+
+      if (propRes.status === 403 || propResult.isPro) {
+        setIsProForbidden(true);
+        setProperty(null);
+        return;
+      }
+
       if (propResult.success && propResult.data) {
         const found = propResult.data;
         setProperty(found);
+        setIsProForbidden(false);
 
         const pkgRes = await fetch(`/api/packages?propertyId=${found.id}`);
         const pkgResult = await pkgRes.json();
@@ -116,24 +132,26 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
         if (bksResult.success && bksResult.data) {
           setBookings(bksResult.data);
         }
+      } else {
+        setProperty(null);
+        setIsProForbidden(false);
       }
     } catch (err) {
       console.error("Failed to query property data:", err);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadPropertyData();
-  }, [slug]);
+  }, [slug, user]);
 
   // Load user profile dates, subscription plan, and latest estimate
   useEffect(() => {
-    if (authLoading || !user) {
+    if (authLoading) return;
+
+    if (!user) {
       setLatestEstimate(null);
       setUserPlan("standard");
       setIsProUser(false);
+      loadPropertyData();
       return;
     }
 
@@ -145,7 +163,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
           const plan = profileResult.data.plan;
           const isAdmin = profileResult.data.isAdmin;
           setUserPlan(plan || "standard");
-          setIsProUser(plan === "pro" || Boolean(isAdmin));
+          setIsProUser(plan === "pro" || Boolean(isAdmin) || Boolean(user.isAdmin));
         }
 
         const res = await fetch(`/api/user/dates?userId=${user.uid}`);
@@ -163,11 +181,13 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
         }
       } catch (err) {
         console.error("Failed to load user dates or estimate:", err);
+      } finally {
+        loadPropertyData();
       }
     };
 
     fetchUserDatesAndEstimate();
-  }, [user, authLoading]);
+  }, [user, authLoading, loadPropertyData]);
 
   // Extract saved start time in hourly mode
   useEffect(() => {
@@ -337,6 +357,100 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     );
   }
 
+  const isOwner = Boolean(user && property?.hostId && (user.uid === property.hostId || user.email === property.hostId));
+  const isProBlocked = isProForbidden || Boolean(property?.isPro && !isProUser && !isOwner);
+
+  if (isProBlocked) {
+    return (
+      <div className="mx-auto flex min-h-[calc(100vh-12rem)] max-w-2xl flex-col items-center justify-center px-4 py-12 text-center font-sans sm:px-6 lg:px-8">
+        <div className="mb-6 flex w-full items-start justify-start">
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}>
+            <ArrowLeftIcon data-icon="inline-start" />
+            Back to all destinations
+          </Button>
+        </div>
+
+        <Card className="relative overflow-hidden border-amber-500/30 bg-gradient-to-b from-card via-card/95 to-amber-500/[0.04] p-6 sm:p-10 shadow-2xl rounded-3xl w-full">
+          <div className="absolute -top-24 -right-24 size-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative flex flex-col items-center gap-6">
+            <div className="flex size-16 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30 shadow-inner">
+              <LockIcon className="size-8" />
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <Badge className="bg-amber-500 hover:bg-amber-500 text-black font-bold uppercase text-[11px] tracking-wider flex items-center gap-1.5 shadow-sm border-none">
+                <SparklesIcon className="size-3.5" />
+                Pro Member Exclusive
+              </Badge>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Pro Exclusive Destination
+              </h1>
+              <p className="max-w-md text-sm leading-relaxed text-muted-foreground text-pretty">
+                This property is reserved exclusively for Simpleplek Pro members. Non-Pro members cannot view listing details, photos, pricing, or availability calendars.
+              </p>
+            </div>
+
+            <div className="w-full rounded-2xl border border-amber-500/20 bg-background/60 p-4 text-left">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-2">
+                Pro Membership Perks
+              </span>
+              <ul className="space-y-2 text-xs text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Access private off-plan retreats and premium listings</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Exclusive member-only stay packages &amp; discounts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Real-time booking and calendar synchronization</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex w-full flex-col gap-3 pt-2">
+              {user ? (
+                <Button
+                  className="h-11 w-full bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm shadow-md"
+                  nativeButton={false}
+                  render={<Link href="/subscribe" />}
+                >
+                  <SparklesIcon data-icon="inline-start" className="size-4" />
+                  Upgrade to Pro to unlock
+                  <ArrowRightIcon data-icon="inline-end" className="size-4" />
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    className="h-11 w-full bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm shadow-md"
+                    nativeButton={false}
+                    render={<Link href={`/login?redirect=/posts/${slug}`} />}
+                  >
+                    Sign in with Pro Account
+                    <ArrowRightIcon data-icon="inline-end" className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 w-full border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
+                    nativeButton={false}
+                    render={<Link href="/subscribe" />}
+                  >
+                    <SparklesIcon data-icon="inline-start" className="size-4" />
+                    Become a Pro Member
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!property) {
     return (
       <Empty className="mx-auto my-20 max-w-md">
@@ -461,20 +575,6 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                 {property.location || "Llandudno, Cape Town"}
               </CardDescription>
             </CardHeader>
-
-            {property.isPro && !isProUser && (
-              <div className="px-6 pb-2">
-                <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 rounded-xl">
-                  <SparklesIcon className="size-4 text-amber-600 dark:text-amber-400" />
-                  <AlertTitle className="font-bold text-amber-800 dark:text-amber-300">
-                    Pro Member Exclusive Listing
-                  </AlertTitle>
-                  <AlertDescription className="text-xs text-amber-700/90 dark:text-amber-300/80">
-                    This property is exclusively offered to Pro members. Upgrade your account plan to unlock full booking access.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
 
             <CardContent className="pt-(--card-spacing)">
               <Separator />

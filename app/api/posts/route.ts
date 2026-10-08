@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Filter list: If not owner, not explicit host query, and not pro viewer, exclude isPro properties from public listing
-    const filteredList = isOwner || isProViewer
+    // Filter list: If not explicit host query, not pro viewer, exclude isPro properties unless viewer owns the listing
+    const filteredList = isProViewer || isExplicitHostQuery
       ? list
-      : list.filter((p: any) => !p.isPro);
+      : list.filter((p: any) => !p.isPro || (viewerId && p.hostId === viewerId));
 
     return NextResponse.json({ success: true, data: filteredList, properties: filteredList });
   } catch (err: any) {
