@@ -678,7 +678,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-heading text-sm font-medium">{pkg.name}</span>
                         {(pkg.isPro || pkg.category === "pro") && (
-                          <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase">
+                          <Badge className="border-secondary/40 bg-secondary/10 text-secondary-600 dark:text-secondary-400 text-[10px] font-bold uppercase">
                             Pro
                           </Badge>
                         )}
@@ -860,9 +860,9 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
               )}
 
               {latestEstimate && latestEstimate.id !== estimate.id && (
-                <div className="flex flex-col gap-2 rounded-lg border bg-amber-500/10 border-amber-500/20 p-3 mb-2">
+                <div className="flex flex-col gap-2 rounded-lg border bg-secondary/40 border-secondary/20 p-3 mb-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium tracking-wide text-amber-600 dark:text-amber-400 uppercase">
+                    <span className="text-xs font-medium tracking-wide text-secondary-600 dark:text-secondary-400 uppercase">
                       Newer active estimate ready
                     </span>
                   </div>
