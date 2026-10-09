@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Copy,
   Check,
+  MapPin,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +68,8 @@ import {
 import { PricingTab } from "@/components/pricing/PricingTab";
 import { SaveBar, SaveState } from "@/components/pricing/SaveBar";
 import { CreateListing } from "@/components/listing/CreateListing";
+import { ProSwitch } from "@/components/listing/ProSwitch";
+import { locations } from "@/data/locations";
 
 interface Property {
   id: string;
@@ -196,7 +200,7 @@ function EditPropertyContent({ id }: { id: string }) {
   const [isPro, setIsPro] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("standard");
 
-  const [activeTab, setActiveTab] = useState<"details" | "pricing" | "availability">("pricing");
+  const [activeTab, setActiveTab] = useState<"details" | "pricing" | "availability">("details");
   const [mandatoryRules, setMandatoryRules] = useState<MandatoryRule[]>([
     { operator: "equals", nights: 1, packageIds: [] },
   ]);
@@ -245,6 +249,15 @@ function EditPropertyContent({ id }: { id: string }) {
     const visibleSet = new Set(visibleSlots);
     return slots.filter((s) => !visibleSet.has(s)).length;
   }, [slots, visibleSlots]);
+
+  const locationSuggestions = useMemo(() => {
+    const q = location.trim().toLowerCase();
+    return q
+      ? locations
+          .filter((l) => l.toLowerCase().includes(q) && l.toLowerCase() !== q)
+          .slice(0, 5)
+      : [];
+  }, [location]);
 
   const toggleSlot = useCallback(
     (slotTime: string) => {
@@ -483,6 +496,10 @@ function EditPropertyContent({ id }: { id: string }) {
 
   const handleRemoveImage = (url: string) => {
     setImages((prev) => prev.filter((img) => img !== url));
+  };
+
+  const handleMakeCoverImage = (url: string) => {
+    setImages((prev) => [url, ...prev.filter((img) => img !== url)]);
   };
 
   // Rule management helpers
@@ -832,38 +849,62 @@ function EditPropertyContent({ id }: { id: string }) {
 
             {/* LISTING DETAILS TAB */}
             {activeTab === "details" && (
-              <Card className="rounded-2xl border border-border bg-card shadow-xs">
-                <CardHeader>
-                  <CardTitle>{activeTabMeta?.label}</CardTitle>
-                  <CardDescription>{activeTabMeta?.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <FieldGroup>
-                    <Field data-invalid={fieldErrors.title ? true : undefined}>
-                      <FieldLabel htmlFor="property-title">Property title</FieldLabel>
-                      <Input
+              <div className="space-y-6">
+                {/* Title & URL Card */}
+                <Card className="rounded-2xl border border-line bg-card shadow-xs">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-bold tracking-tight text-ink">
+                      Property title & URL
+                    </CardTitle>
+                    <CardDescription className="text-muted">
+                      Give your property a catchy name and customize its web address.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <label htmlFor="property-title" className="block text-sm font-semibold text-ink mb-2">
+                        Property title
+                      </label>
+                      <textarea
                         id="property-title"
-                        placeholder="e.g. Llandudno Cliffside Villa"
+                        rows={2}
+                        maxLength={50}
                         value={title}
                         onChange={(e) => handleTitleChange(e.target.value)}
-                        aria-invalid={fieldErrors.title ? true : undefined}
+                        placeholder="e.g. Llandudno Cliffside Villa"
+                        className="w-full resize-none rounded-xl border border-line-strong bg-canvas px-4 py-3 text-xl font-medium leading-snug text-ink placeholder:text-faint focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                       />
-                      <FieldError
-                        errors={
-                          fieldErrors.title ? [{ message: fieldErrors.title }] : undefined
-                        }
-                      />
-                    </Field>
+                      <div className="mt-1 flex items-center justify-between">
+                        {fieldErrors.title ? (
+                          <p className="text-xs text-error font-medium">{fieldErrors.title}</p>
+                        ) : (
+                          <span />
+                        )}
+                        <p className="text-xs font-semibold text-muted">
+                          {title.length}/50
+                        </p>
+                      </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <Field data-invalid={fieldErrors.slug ? true : undefined}>
-                        <FieldLabel htmlFor="property-slug">
-                          Slug{isNew && !slugTouched ? " (auto-generated)" : ""}
-                        </FieldLabel>
-                        <Input
+                    <div>
+                      <label htmlFor="property-slug" className="block text-sm font-semibold text-ink mb-2">
+                        Listing URL
+                      </label>
+                      <div
+                        className={cn(
+                          "flex items-center rounded-xl border bg-canvas focus-within:ring-1",
+                          fieldErrors.slug
+                            ? "border-error focus-within:ring-error"
+                            : "border-line-strong focus-within:border-ink focus-within:ring-ink"
+                        )}
+                      >
+                        <span className="whitespace-nowrap pl-4 text-xs sm:text-sm text-muted">
+                          simpleplek.com/stays/
+                        </span>
+                        <input
                           id="property-slug"
                           inputMode="url"
-                          className="font-mono"
+                          className="min-w-0 flex-1 bg-transparent py-3 pr-4 text-sm font-mono text-ink placeholder:text-faint focus:outline-none"
                           placeholder="llandudno-cliffside-villa"
                           value={slug}
                           onChange={(e) => {
@@ -878,229 +919,262 @@ function EditPropertyContent({ id }: { id: string }) {
                           }
                           aria-invalid={fieldErrors.slug ? true : undefined}
                         />
-                        {fieldErrors.slug ? (
-                          <FieldError errors={[{ message: fieldErrors.slug }]} />
-                        ) : (
-                          <FieldDescription>
-                            Lowercase letters, numbers and dashes only.
-                          </FieldDescription>
-                        )}
-                      </Field>
-
-                      <Field>
-                        <FieldLabel htmlFor="property-location">Location</FieldLabel>
-                        <Input
-                          id="property-location"
-                          placeholder="e.g. Llandudno, Cape Town"
-                          value={location}
-                          onChange={(e) => setLocation(e.target.value)}
-                        />
-                      </Field>
+                      </div>
+                      <p className={cn("mt-1.5 text-xs", fieldErrors.slug ? "text-error font-medium" : "text-muted")}>
+                        {fieldErrors.slug || "Generated from your title. Lowercase letters, numbers and dashes only."}
+                      </p>
                     </div>
+                  </CardContent>
+                </Card>
 
-                    <Field>
-                      <FieldLabel htmlFor="property-description">Description</FieldLabel>
-                      <Textarea
-                        id="property-description"
-                        rows={4}
-                        className="resize-y leading-relaxed"
-                        placeholder="Describe your stay, amenities, views, scenery..."
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
+                {/* Location Card */}
+                <Card className="rounded-2xl border border-line bg-card shadow-xs">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-bold tracking-tight text-ink">
+                      Location
+                    </CardTitle>
+                    <CardDescription className="text-muted">
+                      Where guests will find your stay.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="relative">
+                      <MapPin
+                        className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted"
+                        aria-hidden="true"
                       />
-                      <FieldDescription>
-                        This appears on the public listing page.
-                      </FieldDescription>
-                    </Field>
-
-                    <Separator />
-
-                    {/* Pro Only Property Gating Toggle */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <FieldLabel className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
-                          Membership Tier & Visibility
-                        </FieldLabel>
-                        {isPro && (
-                          <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase flex items-center gap-1">
-                            <Sparkles className="size-3" />
-                            Pro Exclusive Listing
-                          </Badge>
-                        )}
-                      </div>
-
-                      {userPlan === "standard" && !user?.isAdmin ? (
-                        <div className="flex items-start justify-between gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 sm:p-5">
-                          <div className="flex items-start gap-3">
-                            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                              <Sparkles className="size-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-semibold text-foreground">Pro Only Property</h4>
-                                <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 font-bold uppercase">
-                                  🔒 Pro Feature
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                Only guests with an active Pro membership will be able to discover and book this property.
-                              </p>
-                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
-                                Your host account is currently on the Standard plan. Upgrade to Pro to enable Pro-only properties.
-                              </p>
-                            </div>
-                          </div>
-                          <input
-                            type="checkbox"
-                            disabled
-                            checked={false}
-                            className="size-4 rounded border-border text-primary opacity-40 cursor-not-allowed mt-1 shrink-0"
-                          />
-                        </div>
-                      ) : (
-                        <label
-                          htmlFor="property-ispro"
-                          className={cn(
-                            "flex items-start justify-between gap-4 rounded-2xl border p-4 sm:p-5 cursor-pointer transition-all",
-                            isPro
-                              ? "border-amber-500/50 bg-amber-500/10 shadow-xs ring-1 ring-amber-500/20"
-                              : "border-border bg-card hover:border-amber-500/30 hover:bg-muted/40"
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className={cn(
-                              "p-2.5 rounded-xl transition-colors shrink-0",
-                              isPro ? "bg-amber-500 text-black shadow-xs" : "bg-muted text-muted-foreground"
-                            )}>
-                              <Sparkles className="size-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-semibold text-foreground">Pro Only Property</h4>
-                                <Badge className={cn(
-                                  "text-[10px] font-bold uppercase",
-                                  isPro
-                                    ? "bg-amber-500 text-black border-transparent"
-                                    : "bg-muted text-muted-foreground border-border"
-                                )}>
-                                  {isPro ? "⭐ Pro Only" : "Standard"}
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                When enabled, this property listing will only be displayed and available to guests who are active Pro members.
-                              </p>
-                            </div>
-                          </div>
-                          <input
-                            id="property-ispro"
-                            type="checkbox"
-                            checked={isPro}
-                            onChange={(e) => setIsPro(e.target.checked)}
-                            className="size-4 rounded border-border text-amber-500 focus:ring-amber-500 mt-1 cursor-pointer shrink-0"
-                          />
-                        </label>
-                      )}
+                      <input
+                        id="property-location"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        placeholder="e.g. Llandudno, Cape Town"
+                        autoComplete="off"
+                        className="w-full rounded-xl border border-line-strong bg-canvas py-3 pl-12 pr-4 text-base text-ink placeholder:text-faint focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                      />
                     </div>
 
-                    <Separator />
+                    {locationSuggestions.length > 0 && (
+                      <ul className="overflow-hidden rounded-2xl border border-line bg-canvas py-1 shadow-sm">
+                        {locationSuggestions.map((s) => (
+                          <li key={s}>
+                            <button
+                              type="button"
+                              onClick={() => setLocation(s)}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-ink transition-colors duration-150 hover:bg-surface cursor-pointer"
+                            >
+                              <MapPin className="h-4 w-4 text-muted shrink-0" />
+                              <span>{s}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
 
-                    <Field>
-                      <FieldLabel htmlFor="property-images">Property imagery</FieldLabel>
-                      <div
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDragging(true);
-                        }}
-                        onDragLeave={() => setIsDragging(false)}
-                        onDrop={handleDrop}
-                        className={cn(
-                          "relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-colors",
-                          isDragging
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/60"
-                        )}
-                      >
-                        <input
-                          id="property-images"
-                          type="file"
-                          multiple
-                          accept={ACCEPTED_TYPES.join(",")}
-                          onChange={handleFileUpload}
-                          className="absolute inset-0 size-full cursor-pointer opacity-0"
-                        />
-                        <div className="pointer-events-none flex flex-col items-center gap-1">
-                          <ImagePlus className="size-6 text-primary" />
-                          <span className="text-sm font-medium">
-                            {isDragging
-                              ? "Drop images to upload"
-                              : "Drag & drop files or click to upload"}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            PNG, JPG, WEBP up to 10MB each
-                          </span>
+                {/* Description Card */}
+                <Card className="rounded-2xl border border-line bg-card shadow-xs">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-bold tracking-tight text-ink">
+                      Description
+                    </CardTitle>
+                    <CardDescription className="text-muted">
+                      Share what makes your place special. This appears on the public listing page.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <textarea
+                      id="property-description"
+                      rows={5}
+                      maxLength={500}
+                      className="w-full resize-y rounded-xl border border-line-strong bg-canvas px-4 py-3 text-base leading-relaxed text-ink placeholder:text-faint focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                      placeholder="Describe your stay, amenities, views, scenery..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                      <p className="text-xs font-semibold text-muted">
+                        {description.length}/500
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Visibility Card */}
+                <Card className="rounded-2xl border border-line bg-card shadow-xs">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-bold tracking-tight text-ink">
+                      Membership Tier & Visibility
+                    </CardTitle>
+                    <CardDescription className="text-muted">
+                      Configure who can discover and book this listing.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ProSwitch
+                      checked={isPro}
+                      disabled={userPlan === "standard" && !user?.isAdmin}
+                      onChange={setIsPro}
+                    />
+
+                    {userPlan === "standard" && !user?.isAdmin && (
+                      <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+                        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground">Pro Host Subscription Required</p>
+                          <p className="text-muted-foreground text-xs leading-relaxed">
+                            Your host account is currently on the Standard plan. Upgrade to Pro to enable Pro-only properties.
+                          </p>
                         </div>
                       </div>
+                    )}
 
-                      {uploadingFiles.length > 0 && (
-                        <div className="flex flex-col gap-2 mt-3">
-                          {uploadingFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="flex flex-col gap-1.5 rounded-xl border bg-muted/40 p-2.5"
-                            >
-                              <div className="flex items-center justify-between gap-2 text-xs">
-                                <span className="truncate font-mono">{file.name}</span>
-                                <span className="shrink-0 font-medium text-muted-foreground">
-                                  {file.progress}%
-                                </span>
-                              </div>
-                              <Progress value={file.progress} className="h-1.5" />
-                            </div>
-                          ))}
-                        </div>
+                    <div className="flex items-start gap-2.5 px-1 text-sm text-muted">
+                      {isPro ? (
+                        <Lock className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      ) : (
+                        <Globe className="h-4 w-4 mt-0.5 text-muted shrink-0" />
                       )}
+                      <p className="text-xs sm:text-sm">
+                        {isPro ? (
+                          <>
+                            Hidden from regular guests. Pro members see it in search with a{" "}
+                            <span className="font-semibold text-ink inline-flex items-center gap-1">
+                              <Sparkles className="h-3 w-3 text-amber-500" />
+                              Pro only
+                            </span>{" "}
+                            badge.
+                          </>
+                        ) : (
+                          <>Visible to every guest browsing Simple Plek.</>
+                        )}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                      {images.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 mt-4">
-                          {images.map((url, index) => (
+                {/* Property Imagery Card */}
+                <Card className="rounded-2xl border border-line bg-card shadow-xs">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle className="text-xl font-bold tracking-tight text-ink">
+                        Property imagery
+                      </CardTitle>
+                      <CardDescription className="text-muted">
+                        Upload high quality photos of your place. The first photo is your cover.
+                      </CardDescription>
+                    </div>
+                    {images.length > 0 && (
+                      <Badge variant="secondary" className="font-semibold">
+                        {images.length} photo{images.length === 1 ? "" : "s"}
+                      </Badge>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
+                      className={cn(
+                        "relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-colors",
+                        isDragging
+                          ? "border-ink bg-surface"
+                          : "border-line-strong bg-canvas hover:border-ink hover:bg-surface"
+                      )}
+                    >
+                      <input
+                        id="property-images"
+                        type="file"
+                        multiple
+                        accept={ACCEPTED_TYPES.join(",")}
+                        onChange={handleFileUpload}
+                        className="absolute inset-0 size-full cursor-pointer opacity-0"
+                      />
+                      <div className="pointer-events-none flex flex-col items-center gap-1.5">
+                        <div className="grid h-12 w-12 place-items-center rounded-xl bg-surface border border-line">
+                          <ImagePlus className="size-6 text-ink" strokeWidth={1.5} />
+                        </div>
+                        <span className="text-sm font-semibold text-ink">
+                          {isDragging
+                            ? "Drop images to upload"
+                            : "Drag & drop files or click to upload"}
+                        </span>
+                        <span className="text-xs text-muted">
+                          PNG, JPG, WEBP, AVIF up to 10MB each
+                        </span>
+                      </div>
+                    </div>
+
+                    {uploadingFiles.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {uploadingFiles.map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface p-3"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="truncate font-mono font-medium text-ink">{file.name}</span>
+                              <span className="shrink-0 font-medium text-muted">
+                                {file.progress}%
+                              </span>
+                            </div>
+                            <Progress value={file.progress} className="h-1.5" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {images.length > 0 && (
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                        {images.map((url, index) => {
+                          const isCover = index === 0;
+                          return (
                             <div
                               key={url}
-                              className="group relative aspect-square overflow-hidden rounded-xl border bg-muted"
-                            >
-                              <Image
-                                src={url || "/placeholder.svg"}
-                                alt={`${title || "Property"} photo ${index + 1}`}
-                                fill
-                                unoptimized
-                                sizes="(max-width: 640px) 33vw, 25vw"
-                                className="object-cover"
-                              />
-                              {index === 0 && (
-                                <Badge
-                                  variant="secondary"
-                                  className="absolute bottom-1.5 left-1.5 text-[10px]"
-                                >
-                                  Cover
-                                </Badge>
+                              className={cn(
+                                "group relative overflow-hidden rounded-xl border border-line bg-surface",
+                                isCover ? "aspect-[3/2] sm:col-span-2" : "aspect-square"
                               )}
-                              <Button
+                            >
+                              <img
+                                src={url}
+                                alt={`${title || "Property"} photo ${index + 1}`}
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                              {isCover && (
+                                <span className="absolute left-3 top-3 rounded-md bg-canvas/90 backdrop-blur-xs px-3 py-1 text-xs sm:text-sm font-semibold text-ink shadow-sm border border-line">
+                                  Cover photo
+                                </span>
+                              )}
+                              <button
                                 type="button"
-                                size="icon-xs"
-                                variant="destructive"
                                 onClick={() => handleRemoveImage(url)}
-                                aria-label={`Remove image ${index + 1}`}
-                                className="absolute top-1.5 right-1.5 z-10 bg-destructive text-destructive-foreground opacity-100 hover:bg-destructive/90 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                aria-label={`Remove photo ${index + 1}`}
+                                className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-canvas/90 backdrop-blur-xs text-ink shadow-sm border border-line transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer"
                               >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
+                                <X className="h-4 w-4" aria-hidden="true" />
+                              </button>
+                              {!isCover && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMakeCoverImage(url)}
+                                  className="absolute bottom-3 left-3 whitespace-nowrap rounded-full bg-canvas/90 backdrop-blur-xs px-3 py-1.5 text-xs font-semibold text-ink shadow-sm border border-line transition-opacity duration-150 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 cursor-pointer"
+                                >
+                                  Make cover photo
+                                </button>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </Field>
-                  </FieldGroup>
-                </CardContent>
-              </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* AVAILABILITY TAB */}

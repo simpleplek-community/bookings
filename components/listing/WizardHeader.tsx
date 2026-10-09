@@ -24,12 +24,7 @@ export function WizardHeader({ onSave }: WizardHeaderProps) {
 
   return (
     <header className="flex h-20 items-center justify-between border-b border-line bg-canvas px-6 md:px-12 sticky top-0 z-20">
-      <Link
-        href="/admin/properties"
-        className="text-xl font-bold tracking-tight text-brand transition-opacity hover:opacity-80"
-      >
-        simpleplek
-      </Link>
+
       <div className="flex items-center gap-3">
         <Link
           href="/admin/properties"

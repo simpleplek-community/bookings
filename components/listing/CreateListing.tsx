@@ -5,7 +5,6 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/components/auth";
 import { useListingWizard } from "@/hooks/useListingWizard";
-import { WizardHeader } from "./WizardHeader";
 import { WizardFooter } from "./WizardFooter";
 import { StepHeading } from "./StepHeading";
 import { PublishedScreen } from "./PublishedScreen";
@@ -164,7 +163,6 @@ export function CreateListing() {
   if (wizard.publishStatus === "published") {
     return (
       <div className="min-h-screen w-full bg-canvas font-sans text-ink">
-        <WizardHeader onSave={wizard.saveDraftToStorage} />
         <main className="py-8">
           <PublishedScreen
             draft={wizard.draft}
@@ -181,7 +179,6 @@ export function CreateListing() {
   return (
     <div className="min-h-screen w-full bg-canvas font-sans text-ink flex flex-col justify-between">
       <div>
-        <WizardHeader onSave={wizard.saveDraftToStorage} />
         <main className="px-6 pb-40 pt-8 md:pt-12">
           <form
             id="property-form"
