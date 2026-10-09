@@ -8,11 +8,20 @@ import { PackageSheet } from "@/components/package-sheet";
 import { SuggestedPackages } from "@/components/orphaned-package";
 import { type Property, type PropertyPackage } from "@/lib/types";
 import { type PackageDraft } from "@/components/package-form";
-import { HouseIcon, LockIcon, PlusIcon, TriangleAlertIcon, ZapIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronRight,
+  Globe,
+  House,
+  Lock,
+  Plus,
+  Sparkles,
+  TriangleAlert,
+  Zap,
+} from "lucide-react";
+import { publicHost, publicUrl } from "@/utils/subdomain";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Empty,
@@ -23,52 +32,21 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
 
 export default function AdminPropertiesPage() {
   const { user, loading } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [packages, setPackages] = useState<PropertyPackage[]>([]);
   const [userPlan, setUserPlan] = useState<string>("standard");
+  const [subdomain, setSubdomain] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // Subdomain settings states
-  const [subdomain, setSubdomain] = useState<string>("");
-  const [subdomainInput, setSubdomainInput] = useState<string>("");
-  const [isSavingSubdomain, setIsSavingSubdomain] = useState(false);
-  const [subdomainStatus, setSubdomainStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showSuggested, setShowSuggested] = useState(false);
 
   // Side sheet state
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-
-  const handleSaveSubdomain = async () => {
-    if (!user) return;
-    setIsSavingSubdomain(true);
-    setSubdomainStatus(null);
-    try {
-      const response = await fetch("/api/user/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.uid,
-          subdomain: subdomainInput
-        })
-      });
-      const result = await response.json();
-      if (result.success) {
-        setSubdomain(result.data.subdomain);
-        setSubdomainInput(result.data.subdomain);
-        setSubdomainStatus({ type: "success", text: "Subdomain updated successfully!" });
-      } else {
-        throw new Error(result.error || "Failed to update subdomain.");
-      }
-    } catch (err: any) {
-      setSubdomainStatus({ type: "error", text: err.message || "Failed to save subdomain." });
-    } finally {
-      setIsSavingSubdomain(false);
-    }
-  };
 
   const fetchPropertiesAndPackages = useCallback(async () => {
     if (!user) return;
@@ -81,7 +59,7 @@ export default function AdminPropertiesPage() {
           },
         }),
         fetch(`/api/packages`),
-        fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`)
+        fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`),
       ]);
 
       const propsResult = await propsRes.json();
@@ -96,9 +74,7 @@ export default function AdminPropertiesPage() {
       }
       if (profileResult.success && profileResult.data) {
         setUserPlan(profileResult.data.plan || "standard");
-        const sub = profileResult.data.subdomain || "";
-        setSubdomain(sub);
-        setSubdomainInput(sub);
+        setSubdomain(profileResult.data.subdomain || "");
       }
     } catch (err: unknown) {
       console.error("Failed to load properties and packages:", err);
@@ -156,13 +132,6 @@ export default function AdminPropertiesPage() {
     setIsSheetOpen(true);
   };
 
-  const publicUrl = useMemo(() => {
-    if (typeof window === "undefined" || !subdomain) return "";
-    const host = window.location.host;
-    const baseHost = host.replace(/^[a-z0-9-]+\.(localhost:3000|127\.0\.0\.1:3000|simpleplek\.co\.za)/i, "$1");
-    return `${window.location.protocol}//${subdomain}.${baseHost}`;
-  }, [subdomain]);
-
   const handleCreatePackage = async (propertyId: string, draft: PackageDraft) => {
     setActionError(null);
     try {
@@ -184,7 +153,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.data || resJson.error || "Failed to create package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -221,7 +189,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.data || resJson.error || "Failed to update package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -249,7 +216,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.error || "Failed to delete package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -285,7 +251,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.data || resJson.error || "Failed to toggle package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -298,7 +263,7 @@ export default function AdminPropertiesPage() {
   };
 
   const handleCopyPackage = async (propertyId: string, pkg: PropertyPackage) => {
-    const newId = `${pkg.id.split('_')[0]}_${propertyId}`;
+    const newId = `${pkg.id.split("_")[0]}_${propertyId}`;
     setActionError(null);
     try {
       const response = await fetch("/api/packages", {
@@ -324,7 +289,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.data || resJson.error || "Failed to copy package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -360,7 +324,6 @@ export default function AdminPropertiesPage() {
         throw new Error(resJson.data || resJson.error || "Failed to reassign package.");
       }
 
-      // Refresh packages
       const pkgsRes = await fetch(`/api/packages`);
       const pkgsData = await pkgsRes.json();
       if (pkgsData.success) {
@@ -383,14 +346,13 @@ export default function AdminPropertiesPage() {
 
   if (!user || !user.isAdmin) {
     return (
-      // The root layout already renders the <main> landmark.
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent>
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <LockIcon />
+                  <Lock />
                 </EmptyMedia>
                 <EmptyTitle>Access denied</EmptyTitle>
                 <EmptyDescription>
@@ -423,115 +385,118 @@ export default function AdminPropertiesPage() {
   }
 
   return (
-    // The root layout already renders the <main> landmark.
-    <div className="min-h-screen">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8">
-        {/* Header Title & Actions */}
-        <header className="flex flex-col items-start justify-between gap-4 border-b pb-6 sm:flex-row sm:items-center">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-heading text-2xl font-semibold">Properties dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage listings and their package entitlements
-            </p>
+    <div className="min-h-screen bg-[#f6faf9] dark:bg-background text-[#12302c] dark:text-foreground">
+      <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header matching prototype */}
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/40 pb-6">
+          <div className="flex flex-col gap-1.5">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Properties dashboard</h1>
+              <p className="text-sm text-muted-foreground">Manage listings and their package entitlements</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm pt-1">
+              <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span className="text-muted-foreground">Your page</span>
+              {subdomain ? (
+                <>
+                  <a
+                    href={publicUrl(subdomain)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline"
+                  >
+                    {publicHost(subdomain)}
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
+                  <span aria-hidden="true" className="text-muted-foreground/40">·</span>
+                  <Link
+                    href="/settings/profile"
+                    className="rounded font-medium text-emerald-700 dark:text-emerald-400 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Edit
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs italic text-amber-600 dark:text-amber-400">Not configured</span>
+                  <span aria-hidden="true" className="text-muted-foreground/40">·</span>
+                  <Link
+                    href="/settings/profile"
+                    className="rounded font-medium text-emerald-700 dark:text-emerald-400 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Set up public page
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge variant="secondary">
-              <ZapIcon />
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground shadow-2xs">
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
               Plan: {userPlan === "pro" ? "Professional" : "Standard Pro"}
-            </Badge>
-            <Button
-              className="shrink-0"
-              nativeButton={false}
-              render={<Link href="/admin/properties/new" />}
+            </span>
+            <Link
+              href="/admin/properties/new"
+              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PlusIcon data-icon="inline-start" />
+              <Plus className="h-4 w-4" />
               New property
-            </Button>
+            </Link>
           </div>
         </header>
 
-        {/* Subdomain Management Widget */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/20 border rounded-xl p-5">
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5 text-slate-900 dark:text-white">
-              <span>🌐</span> Create your own space
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              This is how people find you here. Your name  + our address
-            </p>
-            {subdomain ? (
-              <div className="pt-2">
-                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold uppercase tracking-wider block">Your username in the URL</span>
-                <a
-                  href={publicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-mono text-teal-600 dark:text-teal-400 hover:underline break-all inline-flex items-center gap-1 font-bold mt-1"
-                >
-                  {publicUrl} <span className="text-[9px]">↗</span>
-                </a>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-600 dark:text-amber-400 italic pt-2">
-                No subdomain configured. Set one on the right to activate your portal.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-xs text-slate-500 dark:text-zinc-400 font-semibold uppercase tracking-wider block">
-              what is your username?
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-grow">
-                <input
-                  type="text"
-                  placeholder="e.g. tenant1"
-                  value={subdomainInput}
-                  onChange={(e) => setSubdomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-slate-900 dark:text-white"
-                />
-              </div>
-              <Button
-                onClick={handleSaveSubdomain}
-                disabled={isSavingSubdomain}
-                size="sm"
-                className="shrink-0"
-              >
-                {isSavingSubdomain ? "Saving..." : "Save Subdomain"}
-              </Button>
-            </div>
-            {subdomainStatus && (
-              <p className={`text-[10px] font-bold ${subdomainStatus.type === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                {subdomainStatus.text}
-              </p>
-            )}
-          </div>
-        </div>
-
         {actionError && (
           <Alert variant="destructive">
-            <TriangleAlertIcon />
+            <TriangleAlert />
             <AlertDescription>{actionError}</AlertDescription>
           </Alert>
         )}
 
+        {/* Suggested Package Templates Banner */}
         {suggestedPackages.length > 0 && (
-          <SuggestedPackages
-            suggested={suggestedPackages}
-            properties={properties}
-            onCopy={handleCopyPackage}
-          />
+          <section className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setShowSuggested((v) => !v)}
+              className="flex w-full items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-50/60 dark:bg-emerald-950/20 p-4 text-left transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Sparkles className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {suggestedPackages.length} Suggested Package Template{suggestedPackages.length === 1 ? "" : "s"} Available
+                </p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Reuse popular package configurations from other listings in the community.
+                </p>
+              </div>
+              <ChevronRight
+                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                  showSuggested ? "rotate-90" : ""
+                }`}
+              />
+            </button>
+
+            {showSuggested && (
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-2xs">
+                <SuggestedPackages
+                  suggested={suggestedPackages}
+                  properties={properties}
+                  onCopy={handleCopyPackage}
+                />
+              </div>
+            )}
+          </section>
         )}
 
+        {/* Properties Grid */}
         {properties.length === 0 ? (
           <Card className="mx-auto w-full max-w-lg">
             <CardContent>
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    <HouseIcon />
+                    <House />
                   </EmptyMedia>
                   <EmptyTitle>No properties yet</EmptyTitle>
                   <EmptyDescription>
@@ -543,7 +508,7 @@ export default function AdminPropertiesPage() {
                     nativeButton={false}
                     render={<Link href="/admin/properties/new" />}
                   >
-                    <PlusIcon data-icon="inline-start" />
+                    <Plus data-icon="inline-start" />
                     Create first property
                   </Button>
                 </EmptyContent>
@@ -551,10 +516,10 @@ export default function AdminPropertiesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {properties.map((property) => (
               <PropertyCard
-                key={property.id}
+                key={property.id || property.slug}
                 property={property}
                 packages={byProperty[property.id] ?? []}
                 onOpenPackages={() => openPackagesSheet(property.id)}
@@ -562,7 +527,7 @@ export default function AdminPropertiesPage() {
             ))}
           </div>
         )}
-      </div>
+      </main>
 
       <PackageSheet
         property={activeProperty}
