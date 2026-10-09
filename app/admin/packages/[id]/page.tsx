@@ -58,7 +58,12 @@ function PackageEditorContent({ id }: { id: string }) {
       if (!user) return;
       try {
         // 1. Fetch properties owned by the host
-        const propsRes = await fetch(`/api/posts?hostId=${user.uid}`);
+        const propsRes = await fetch(`/api/posts?hostId=${user.uid}&userId=${user.uid}&email=${user.email || ""}`, {
+          headers: {
+            "x-user-id": user.uid,
+            "x-user-email": user.email || "",
+          },
+        });
         const propsResult = await propsRes.json();
         if (propsResult.success && propsResult.data) {
           setProperties(propsResult.data);

@@ -265,6 +265,8 @@ function EditPropertyContent({ id }: { id: string }) {
 
   useEffect(() => {
     const fetchPropertyData = async () => {
+      if (authLoading) return;
+
       // Fetch packages for this property (or all packages for new listings)
       try {
         const [pkgsRes, profileRes] = await Promise.all([
@@ -291,7 +293,17 @@ function EditPropertyContent({ id }: { id: string }) {
       }
 
       try {
-        const res = await fetch(`/api/posts/${id}`);
+        const queryParams = new URLSearchParams();
+        if (user?.uid) queryParams.set("userId", user.uid);
+        if (user?.email) queryParams.set("email", user.email);
+
+        const propUrl = `/api/posts/${id}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+        const res = await fetch(propUrl, {
+          headers: {
+            ...(user?.uid ? { "x-user-id": user.uid } : {}),
+            ...(user?.email ? { "x-user-email": user.email } : {}),
+          },
+        });
         const result = await res.json();
         if (result.success && result.data) {
           setProperty(result.data);
@@ -362,7 +374,7 @@ function EditPropertyContent({ id }: { id: string }) {
     };
 
     fetchPropertyData();
-  }, [id, isNew, notify]);
+  }, [id, isNew, user, authLoading, notify]);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);

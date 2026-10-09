@@ -18,14 +18,27 @@ export async function GET(
 
     if (property.isPro) {
       // Check if viewer is owner, admin, or pro member
-      const isOwner = Boolean(viewerId && property.hostId && (viewerId === property.hostId || viewerEmail === property.hostId));
       let isProViewer = false;
+      let isOwner = false;
+
       if (viewerId || viewerEmail) {
         const viewerProfile = viewerId ? await getUserProfile(viewerId) : null;
         const emailToCheck = viewerEmail || viewerProfile?.email || "";
         const isViewerAdmin = await isUserAdmin(viewerId || "", emailToCheck);
+
         if (viewerProfile?.plan === "pro" || isViewerAdmin) {
           isProViewer = true;
+        }
+
+        if (property.hostId) {
+          const hostIdStr = String(property.hostId).toLowerCase();
+          if (
+            (viewerId && String(viewerId).toLowerCase() === hostIdStr) ||
+            (emailToCheck && emailToCheck.toLowerCase() === hostIdStr) ||
+            (viewerEmail && viewerEmail.toLowerCase() === hostIdStr)
+          ) {
+            isOwner = true;
+          }
         }
       }
 
@@ -68,7 +81,13 @@ export async function PUT(
     const isAdmin = await isUserAdmin(userId, email);
     // Verify host tenancy ownership (allow if matching hostId, or if admin, or if existing has no hostId, or if it is default host)
     const propertyHostId = existing.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId && !isAdmin) {
+    const isOwner = Boolean(
+      (userId && (userId === propertyHostId || userId.toLowerCase() === propertyHostId.toLowerCase())) ||
+      (email && email.toLowerCase() === propertyHostId.toLowerCase()) ||
+      propertyHostId === "mock_admin_example_com"
+    );
+
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
     }
 
@@ -108,7 +127,7 @@ export async function PUT(
       basePricePerNight: price,
       airbnbCalendarUrl: airbnbCalendarUrl || "",
       googleCalendarUrl: googleCalendarUrl || "",
-      hostId: propertyHostId, // Keep original hostId
+      hostId: existing.hostId || userId, // Keep original hostId if set
       description: description !== undefined ? description : (existing.description || ""),
       images: images !== undefined ? images : (existing.images || []),
       bookingType: bookingType !== undefined ? bookingType : (existing.bookingType || "nightly"),
@@ -150,7 +169,12 @@ export async function DELETE(
     const isAdmin = await isUserAdmin(userId, email);
     // Verify host tenancy ownership
     const propertyHostId = existing.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId && !isAdmin) {
+    const isOwner = Boolean(
+      (userId && (userId === propertyHostId || userId.toLowerCase() === propertyHostId.toLowerCase())) ||
+      (email && email.toLowerCase() === propertyHostId.toLowerCase()) ||
+      propertyHostId === "mock_admin_example_com"
+    );
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
     }
 
