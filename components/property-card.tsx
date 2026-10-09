@@ -24,7 +24,7 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
   const coverImage = property.images?.[0] || "/placeholder.svg";
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs transition-all hover:shadow-sm">
+    <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xs transition-all hover:shadow-sm">
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted/60">
         <img
           src={coverImage}
@@ -106,7 +106,7 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
 
         <Link
           href={`/admin/properties/${property.id || property.slug}`}
-          className="inline-flex h-9.5 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-9.5 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Configure
           <ArrowRight className="h-4 w-4" />

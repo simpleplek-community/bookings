@@ -438,7 +438,7 @@ export default function AdminPropertiesPage() {
             </span>
             <Link
               href="/admin/properties/new"
-              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Plus className="h-4 w-4" />
               New property
@@ -471,9 +471,8 @@ export default function AdminPropertiesPage() {
                 </p>
               </div>
               <ChevronRight
-                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
-                  showSuggested ? "rotate-90" : ""
-                }`}
+                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${showSuggested ? "rotate-90" : ""
+                  }`}
               />
             </button>
 
