@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PricingTab } from "@/components/pricing/PricingTab";
 import { SaveBar, SaveState } from "@/components/pricing/SaveBar";
+import { CreateListing } from "@/components/listing/CreateListing";
 
 interface Property {
   id: string;
@@ -1268,6 +1269,10 @@ export default function EditPropertyPage({
   params: Promise<{ id: string }>;
 }) {
   const unwrappedParams = use(params);
+
+  if (unwrappedParams.id === "new") {
+    return <CreateListing />;
+  }
 
   return (
     <Suspense
