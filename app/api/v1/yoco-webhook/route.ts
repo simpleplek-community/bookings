@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateBookingStatus, getEstimate, updateEstimateStatus, createBooking, listBookings, promoteUserToAdmin, getProperty, getBooking } from "@/lib/firebase";
+import { updateBookingStatus, getEstimate, updateEstimateStatus, createBooking, listBookings, promoteUserToAdmin, getProperty, getBooking, updateBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
@@ -96,11 +96,23 @@ export async function POST(request: NextRequest) {
           } else {
             console.log(`[Yoco Webhook] Booking already exists for estimate ${estimateId}`);
             const existing = existingBookings.find((b: any) => isHourly ? (b.estimateId === estimateId && (b.customerEmail === targetEmail || b.customerId === targetId)) : (b.estimateId === estimateId));
-            if (existing && !existing.confirmationEmailSent) {
-              try {
-                await sendBookingConfirmationEmail(existing);
-              } catch (err) {
-                console.error("[Yoco Webhook] Error sending email for existing booking:", err);
+            if (existing) {
+              const mergedGuests = Array.from(new Set([...(existing.guests || []), ...(estimate.guests || [])]));
+              const mergedDetails = { ...(estimate.guestsDetails || {}), ...(existing.guestsDetails || {}) };
+              await updateBooking(existing.id, {
+                paymentStatus: "paid",
+                guests: mergedGuests,
+                guestsDetails: mergedDetails
+              });
+              existing.guests = mergedGuests;
+              existing.guestsDetails = mergedDetails;
+
+              if (!existing.confirmationEmailSent) {
+                try {
+                  await sendBookingConfirmationEmail(existing);
+                } catch (err) {
+                  console.error("[Yoco Webhook] Error sending email for existing booking:", err);
+                }
               }
             }
           }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEstimateByToken, addGuestToEstimate } from "@/lib/firebase";
+import { getEstimateByToken, addGuestToEstimate, listBookings, addGuestToBooking } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +27,17 @@ export async function POST(request: NextRequest) {
     const added = await addGuestToEstimate(estimate.id, userId, email, name);
     if (!added) {
       return NextResponse.json({ success: false, error: "Failed to join estimate." }, { status: 500 });
+    }
+
+    // Also add guest to any existing booking linked to this estimate
+    try {
+      const allBookings = await listBookings();
+      const matchingBookings = allBookings.filter((b: any) => b.estimateId === estimate.id);
+      for (const b of matchingBookings) {
+        await addGuestToBooking(b.id, userId, email, name);
+      }
+    } catch (bkErr) {
+      console.warn("Failed to sync joined guest to existing booking:", bkErr);
     }
 
     return NextResponse.json({ success: true, estimateId: estimate.id, message: "Successfully joined the estimate!" });

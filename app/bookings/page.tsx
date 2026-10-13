@@ -16,7 +16,9 @@ import {
   KeyRoundIcon,
   LockIcon,
   LuggageIcon,
+  Share2Icon,
   TriangleAlertIcon,
+  UserIcon,
   UsersIcon,
 } from "lucide-react";
 
@@ -117,6 +119,7 @@ function BookingsCheckoutContent() {
   // Admin and filter mode states
   const [viewMode, setViewMode] = useState<"my" | "all">("my");
   const [latestEstimate, setLatestEstimate] = useState<any | null>(null);
+  const [copiedEstimateLink, setCopiedEstimateLink] = useState<boolean>(false);
 
   // Calculate stay duration
   const from = savedDates ? new Date(savedDates.fromDate) : new Date();
@@ -226,18 +229,20 @@ function BookingsCheckoutContent() {
         }
 
         if (propertyId) {
-          const found = fetchedProps.find((p: Property) => p.id === propertyId);
+          const found = fetchedProps.find((p: Property) => p.id === propertyId || p.slug === propertyId);
           if (found) setProperty(found);
 
+          const targetPropId = found ? found.id : propertyId;
+
           // 2. Fetch Packages for this property
-          const pkgRes = await fetch(`/api/packages?propertyId=${propertyId}`);
+          const pkgRes = await fetch(`/api/packages?propertyId=${targetPropId}`);
           const pkgResult = await pkgRes.json();
           if (pkgResult.success && pkgResult.data) {
             setPackages(pkgResult.data);
           }
 
           // 3. Fetch Bookings for history list
-          const bksRes = await fetch(`/api/bookings?propertyId=${propertyId}`);
+          const bksRes = await fetch(`/api/bookings?propertyId=${targetPropId}`);
           const bksResult = await bksRes.json();
           if (bksResult.success && bksResult.data) {
             setBookingsList(bksResult.data);
@@ -285,7 +290,8 @@ function BookingsCheckoutContent() {
           setSavedDates(result.data);
         }
 
-        const estRes = await fetch(`/api/estimates/latest?userId=${user.uid}`);
+        const propFilter = propertyId ? `&propertyId=${propertyId}` : "";
+        const estRes = await fetch(`/api/estimates/latest?userId=${user.uid}${propFilter}`);
         const estResult = await estRes.json();
         if (estResult.success && estResult.data) {
           setLatestEstimate(estResult.data);
@@ -473,25 +479,50 @@ function BookingsCheckoutContent() {
     setCheckoutLog(["1. Validating stay selection...", "2. Registering stay estimate details..."]);
 
     try {
-      // POST estimate
-      const estRes = await fetch("/api/estimates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId,
-          packageId: selectedPackageId || null,
-          customerName: user.displayName || user.email?.split("@")[0] || "Authenticated Guest",
-          customerEmail: user.email || "",
-          customerId: user.uid,
-          fromDate: from.toISOString(),
-          toDate: to.toISOString(),
-          total: finalTotal
-        })
-      });
+      const targetPropertyId = property ? property.id : propertyId;
+      const isExistingEstimateForProperty = Boolean(
+        latestEstimate &&
+        latestEstimate.paymentStatus === "pending" &&
+        (latestEstimate.propertyId === targetPropertyId ||
+          latestEstimate.propertyId === property?.slug ||
+          latestEstimate.propertyId === propertyId)
+      );
 
-      const estResult = await estRes.json();
-      if (!estRes.ok || !estResult.success) {
-        throw new Error(estResult.error || "Failed to log stay estimate.");
+      let estimateId = isExistingEstimateForProperty ? latestEstimate.id : null;
+
+      if (isExistingEstimateForProperty && latestEstimate) {
+        // Update the existing estimate with current selected package & final total
+        await fetch("/api/estimates", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            estimateId: latestEstimate.id,
+            packageId: selectedPackageId || null,
+            total: finalTotal
+          })
+        });
+      } else {
+        // POST estimate
+        const estRes = await fetch("/api/estimates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId: targetPropertyId,
+            packageId: selectedPackageId || null,
+            customerName: user.displayName || user.email?.split("@")[0] || "Authenticated Guest",
+            customerEmail: user.email || "",
+            customerId: user.uid,
+            fromDate: from.toISOString(),
+            toDate: to.toISOString(),
+            total: finalTotal
+          })
+        });
+
+        const estResult = await estRes.json();
+        if (!estRes.ok || !estResult.success) {
+          throw new Error(estResult.error || "Failed to log stay estimate.");
+        }
+        estimateId = estResult.estimate.id;
       }
 
       setCheckoutLog(prev => [
@@ -503,7 +534,7 @@ function BookingsCheckoutContent() {
         ? selectedPackage.id
         : (packages.length > 0
           ? packages[0].id
-          : (propertyId === "cottage" ? "long_weekend_at_the_Cottage" : "shack_stack")
+          : (targetPropertyId === "cottage" ? "long_weekend_at_the_Cottage" : "shack_stack")
         );
 
       // POST create link
@@ -512,7 +543,7 @@ function BookingsCheckoutContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: targetType,
-          estimateId: estResult.estimate.id,
+          estimateId,
           amountInCentsOverride: Math.round(finalTotal * 100),
           descriptionOverride: selectedPackage ? selectedPackage.name : 'Stay Booking'
         })
@@ -602,7 +633,10 @@ function BookingsCheckoutContent() {
         </header>
 
         {latestEstimate && latestEstimate.paymentStatus === "pending" && (() => {
-          const estimateProperty = propertiesList.find((p) => p.id === latestEstimate.propertyId);
+          const estimateProperty = propertiesList.find((p) => p.id === latestEstimate.propertyId || p.slug === latestEstimate.propertyId);
+          const inviteUrl = typeof window !== "undefined" && latestEstimate.token ? `${window.location.origin}/i/${latestEstimate.token}` : "";
+          const guestCount = latestEstimate.guests?.length || 0;
+
           return (
             <Card className="mb-8 border-primary/40 bg-accent/40">
               <CardContent className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -617,7 +651,15 @@ function BookingsCheckoutContent() {
                     </div>
                   )}
                   <div className="flex flex-col gap-1.5">
-                    <Badge variant="secondary">Unpaid stay estimate</Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">Unpaid stay estimate</Badge>
+                      {guestCount > 0 && (
+                        <Badge variant="outline" className="gap-1">
+                          <UsersIcon className="size-3" />
+                          {guestCount} companion{guestCount === 1 ? "" : "s"} joined
+                        </Badge>
+                      )}
+                    </div>
                     <h2 className="font-heading text-lg font-semibold tracking-tight">
                       {estimateProperty?.title || latestEstimate.propertyId}
                     </h2>
@@ -632,13 +674,34 @@ function BookingsCheckoutContent() {
                   </div>
                 </div>
 
-                <Button
-                  className="shrink-0"
-                  nativeButton={false}
-                  render={<Link href={`/estimate/${latestEstimate.id}`} />}
-                >
-                  View details and pay
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {inviteUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteUrl);
+                        setCopiedEstimateLink(true);
+                        setTimeout(() => setCopiedEstimateLink(false), 2500);
+                      }}
+                    >
+                      {copiedEstimateLink ? (
+                        <CheckIcon data-icon="inline-start" />
+                      ) : (
+                        <Share2Icon data-icon="inline-start" />
+                      )}
+                      {copiedEstimateLink ? "Link copied" : "Share invite"}
+                    </Button>
+                  )}
+                  <Button
+                    className="shrink-0"
+                    nativeButton={false}
+                    render={<Link href={`/estimate/${latestEstimate.id}`} />}
+                  >
+                    View details and pay
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
@@ -762,12 +825,41 @@ function BookingsCheckoutContent() {
                     </div>
 
                     {(b.paymentStatus === "paid" || b.paymentStatus === "success") && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Total guests</span>
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <UsersIcon className="size-4 text-muted-foreground" />
-                          {guestCount} {guestCount === 1 ? "guest" : "guests"}
-                        </span>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Total guests</span>
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <UsersIcon className="size-4 text-muted-foreground" />
+                            {guestCount} {guestCount === 1 ? "guest" : "guests"}
+                          </span>
+                        </div>
+
+                        {b.guests && b.guests.length > 0 && (
+                          <div className="flex flex-col gap-1.5 pt-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Confirmed party ({b.guests.length})
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {b.guests.map((gUid: string, idx: number) => {
+                                const details = b.guestsDetails?.[gUid];
+                                const guestName =
+                                  details?.name ||
+                                  (gUid === user.uid
+                                    ? user.displayName || user.email?.split("@")[0] || "You"
+                                    : details?.email || `${gUid.substring(0, 8)}…`);
+                                return (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1.5 rounded-md border bg-muted/60 px-2 py-0.5 text-xs"
+                                  >
+                                    <UserIcon className="size-3 text-muted-foreground" />
+                                    <span>{guestName}</span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

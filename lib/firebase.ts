@@ -477,12 +477,14 @@ export async function deletePackage(id: string): Promise<boolean> {
 // BOOKINGS CRUD
 // ==========================================
 
-export async function createBooking(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; fromDate: string; toDate: string; total: number; paymentStatus?: string }): Promise<any> {
+export async function createBooking(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; fromDate: string; toDate: string; total: number; paymentStatus?: string; customerId?: string; estimateId?: string; guests?: string[]; guestsDetails?: Record<string, any> }): Promise<any> {
   const db = getFirestore();
   const id = `bk_${Math.random().toString(36).substring(2, 11)}`;
   const bookingRecord = {
     paymentStatus: "pending",
     token: Math.random().toString(36).substring(2, 15),
+    guests: data.guests || [],
+    guestsDetails: data.guestsDetails || {},
     ...data,
     id
   };
@@ -641,14 +643,15 @@ export async function isUserAdmin(uid: string, email?: string | null): Promise<b
 // ESTIMATES CRUD
 // ==========================================
 
-export async function createEstimate(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; customerId: string; fromDate: string; toDate: string; total: number; paymentStatus?: string }): Promise<any> {
+export async function createEstimate(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; customerId: string; fromDate: string; toDate: string; total: number; paymentStatus?: string; guests?: string[]; guestsDetails?: Record<string, any> }): Promise<any> {
   const db = getFirestore();
   const id = `est_${Math.random().toString(36).substring(2, 11)}`;
   const token = Math.random().toString(36).substring(2, 12);
   const estimateRecord = {
     paymentStatus: "pending",
     token,
-    guests: [],
+    guests: data.guests || [],
+    guestsDetails: data.guestsDetails || {},
     createdAt: new Date().toISOString(),
     ...data,
     id
@@ -788,14 +791,26 @@ export async function addGuestToEstimate(id: string, guestUid: string, guestEmai
   }
 }
 
-export async function getLatestEstimateForUser(userId: string): Promise<any | null> {
+export async function getLatestEstimateForUser(userId: string, propertyId?: string): Promise<any | null> {
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
     const estimates = dbData.estimates || [];
-    const userEstimates = estimates.filter((e: any) => 
-      e.customerId === userId || (e.guests && e.guests.includes(userId))
-    );
+    let prop: any = null;
+    if (propertyId) {
+      const props = dbData.properties || [];
+      prop = props.find((p: any) => p.id === propertyId || p.slug === propertyId);
+    }
+    const allowedPropertyIds = prop ? [prop.id, prop.slug].filter(Boolean) : (propertyId ? [propertyId] : []);
+
+    const userEstimates = estimates.filter((e: any) => {
+      const isUser = e.customerId === userId || (e.guests && e.guests.includes(userId));
+      if (!isUser) return false;
+      if (allowedPropertyIds.length > 0) {
+        return allowedPropertyIds.includes(e.propertyId);
+      }
+      return true;
+    });
     if (userEstimates.length === 0) return null;
     userEstimates.sort((a: any, b: any) => 
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -803,6 +818,9 @@ export async function getLatestEstimateForUser(userId: string): Promise<any | nu
     return userEstimates[0];
   }
   try {
+    const prop = propertyId ? await getProperty(propertyId) : null;
+    const allowedPropertyIds = prop ? [prop.id, prop.slug].filter(Boolean) : (propertyId ? [propertyId] : []);
+
     const snapCustomer = await db.collection("estimates")
       .where("customerId", "==", userId)
       .get();
@@ -813,13 +831,17 @@ export async function getLatestEstimateForUser(userId: string): Promise<any | nu
       
     const results: any[] = [];
     snapCustomer.forEach((doc: any) => {
-      results.push(doc.data());
+      const data = doc.data();
+      if (allowedPropertyIds.length === 0 || allowedPropertyIds.includes(data.propertyId)) {
+        results.push(data);
+      }
     });
     snapGuest.forEach((doc: any) => {
       const data = doc.data();
-      // Avoid adding duplicates if the user is both the customer and in guests list
       if (!results.some(r => r.id === data.id)) {
-        results.push(data);
+        if (allowedPropertyIds.length === 0 || allowedPropertyIds.includes(data.propertyId)) {
+          results.push(data);
+        }
       }
     });
 
@@ -834,9 +856,21 @@ export async function getLatestEstimateForUser(userId: string): Promise<any | nu
     console.error(`[Firebase] getLatestEstimateForUser error:`, err);
     const dbData = readMockDb();
     const estimates = dbData.estimates || [];
-    const userEstimates = estimates.filter((e: any) => 
-      e.customerId === userId || (e.guests && e.guests.includes(userId))
-    );
+    let prop: any = null;
+    if (propertyId) {
+      const props = dbData.properties || [];
+      prop = props.find((p: any) => p.id === propertyId || p.slug === propertyId);
+    }
+    const allowedPropertyIds = prop ? [prop.id, prop.slug].filter(Boolean) : (propertyId ? [propertyId] : []);
+
+    const userEstimates = estimates.filter((e: any) => {
+      const isUser = e.customerId === userId || (e.guests && e.guests.includes(userId));
+      if (!isUser) return false;
+      if (allowedPropertyIds.length > 0) {
+        return allowedPropertyIds.includes(e.propertyId);
+      }
+      return true;
+    });
     if (userEstimates.length === 0) return null;
     userEstimates.sort((a: any, b: any) => 
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()

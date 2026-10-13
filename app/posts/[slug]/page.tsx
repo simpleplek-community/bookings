@@ -14,15 +14,20 @@ import {
   CopyIcon,
   GiftIcon,
   ImageOffIcon,
+  LinkIcon,
   LockIcon,
   MapPinIcon,
+  Share2Icon,
   SparklesIcon,
   TriangleAlertIcon,
+  UserIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -89,6 +94,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingDates, setIsSavingDates] = useState(false);
+  const [isGeneratingEstimate, setIsGeneratingEstimate] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
   const [copiedEstimateUrl, setCopiedEstimateUrl] = useState(false);
 
@@ -132,6 +138,18 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
         if (bksResult.success && bksResult.data) {
           setBookings(bksResult.data);
         }
+
+        if (user?.uid) {
+          try {
+            const estRes = await fetch(`/api/estimates/latest?userId=${user.uid}&propertyId=${found.id}`);
+            const estResult = await estRes.json();
+            if (estResult.success && estResult.data) {
+              setLatestEstimate(estResult.data);
+            }
+          } catch (estErr) {
+            console.error("Failed to load estimate for property:", estErr);
+          }
+        }
       } else {
         setProperty(null);
         setIsProForbidden(false);
@@ -174,7 +192,8 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
           setToDate(result.data.toDate.split("T")[0]);
         }
 
-        const estRes = await fetch(`/api/estimates/latest?userId=${user.uid}`);
+        const propFilter = slug ? `&propertyId=${slug}` : "";
+        const estRes = await fetch(`/api/estimates/latest?userId=${user.uid}${propFilter}`);
         const estResult = await estRes.json();
         if (estResult.success && estResult.data) {
           setLatestEstimate(estResult.data);
@@ -187,7 +206,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     };
 
     fetchUserDatesAndEstimate();
-  }, [user, authLoading, loadPropertyData]);
+  }, [user, authLoading, slug, loadPropertyData]);
 
   // Extract saved start time in hourly mode
   useEffect(() => {
@@ -209,12 +228,109 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     }
   }, [property, savedDates, selectedSlot]);
 
+  const isEstimateForThisProperty = Boolean(
+    latestEstimate &&
+      property &&
+      (latestEstimate.propertyId === property.id ||
+        latestEstimate.propertyId === property.slug ||
+        latestEstimate.propertyId === slug)
+  );
+
+  const estimateInviteUrl =
+    isEstimateForThisProperty && latestEstimate?.token && typeof window !== "undefined"
+      ? `${window.location.origin}/i/${latestEstimate.token}`
+      : "";
+
   const handleShareEstimate = () => {
-    if (!latestEstimate) return;
-    const inviteUrl = `${window.location.origin}/i/${latestEstimate.token}`;
-    navigator.clipboard.writeText(inviteUrl);
+    if (!estimateInviteUrl) return;
+    navigator.clipboard.writeText(estimateInviteUrl);
     setCopiedEstimateUrl(true);
     setTimeout(() => setCopiedEstimateUrl(false), 2500);
+  };
+
+  const handleCreateEstimateInvite = async () => {
+    if (!user) {
+      alert("Please sign in to invite guests.");
+      return;
+    }
+    if (!property) return;
+    setIsGeneratingEstimate(true);
+    try {
+      let start: Date;
+      let end: Date;
+      if (property.bookingType === "hourly") {
+        const slotTime = selectedSlot || (property.slots && property.slots.length > 0 ? property.slots[0] : "09:00");
+        const [h, m] = slotTime.split(":").map(Number);
+        start = new Date(`${fromDate}T00:00:00`);
+        start.setHours(h, m, 0, 0);
+        end = new Date(start.getTime());
+        end.setHours(end.getHours() + 1);
+      } else {
+        start = new Date(savedDates ? savedDates.fromDate : fromDate);
+        end = new Date(savedDates ? savedDates.toDate : toDate);
+      }
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end) {
+        setDateError("Invalid date selection.");
+        return;
+      }
+
+      if (!savedDates) {
+        const dateRes = await fetch("/api/user/dates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.uid,
+            fromDate: start.toISOString(),
+            toDate: end.toISOString(),
+          }),
+        });
+        const dateResult = await dateRes.json();
+        if (dateResult.success && dateResult.data) {
+          setSavedDates(dateResult.data);
+        }
+      }
+
+      const isHourly = property.bookingType === "hourly";
+      const stayDuration = isHourly
+        ? 1
+        : Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+
+      let baseCost = property.basePricePerNight * stayDuration;
+      if (!isHourly) {
+        const weeklyDiscount = property.weeklyDiscount ?? 0;
+        const monthlyDiscount = property.monthlyDiscount ?? 0;
+        if (stayDuration >= 28 && monthlyDiscount > 0) {
+          baseCost = baseCost * (1 - monthlyDiscount / 100);
+        } else if (stayDuration >= 7 && weeklyDiscount > 0) {
+          baseCost = baseCost * (1 - weeklyDiscount / 100);
+        }
+      }
+
+      const estRes = await fetch("/api/estimates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: property.id,
+          packageId: null,
+          customerName: user.displayName || user.email?.split("@")[0] || "Authenticated Guest",
+          customerEmail: user.email || "",
+          customerId: user.uid,
+          fromDate: start.toISOString(),
+          toDate: end.toISOString(),
+          total: baseCost,
+        }),
+      });
+
+      const estResult = await estRes.json();
+      if (estRes.ok && estResult.success && estResult.estimate) {
+        setLatestEstimate(estResult.estimate);
+      }
+    } catch (err: any) {
+      console.error("Failed to generate estimate invite:", err);
+    } finally {
+      setIsGeneratingEstimate(false);
+    }
   };
 
   const handleSaveDates = async () => {
@@ -752,7 +868,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
             <CardContent className="flex flex-col gap-4">
               {/* Active Estimate Sharing Widget */}
-              {latestEstimate && latestEstimate.propertyId === property.id && (
+              {isEstimateForThisProperty && (
                 <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -770,7 +886,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                       {copiedEstimateUrl ? (
                         <CheckIcon data-icon="inline-start" />
                       ) : (
-                        <CopyIcon data-icon="inline-start" />
+                        <Share2Icon data-icon="inline-start" />
                       )}
                       {copiedEstimateUrl ? "Copied" : "Share link"}
                     </Button>
@@ -852,13 +968,26 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                     </div>
                   </div>
 
+                  {!isEstimateForThisProperty && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleCreateEstimateInvite}
+                      disabled={isGeneratingEstimate}
+                    >
+                      {isGeneratingEstimate && <Spinner data-icon="inline-start" />}
+                      <Share2Icon data-icon="inline-start" />
+                      {isGeneratingEstimate ? "Generating link..." : "Invite guests to this stay"}
+                    </Button>
+                  )}
+
                   <Button
                     className="w-full"
                     nativeButton={false}
                     render={
                       <Link
                         href={
-                          latestEstimate && latestEstimate.propertyId === property.id
+                          isEstimateForThisProperty
                             ? `/estimate/${latestEstimate.id}`
                             : `/bookings?propertyId=${property.id}`
                         }
@@ -943,14 +1072,116 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                     </div>
                   )}
 
-                  <Button className="w-full" onClick={handleSaveDates} disabled={isSavingDates}>
-                    {isSavingDates && <Spinner data-icon="inline-start" />}
-                    {isSavingDates ? "Saving selection" : "Confirm & save booking"}
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button className="w-full" onClick={handleSaveDates} disabled={isSavingDates}>
+                      {isSavingDates && <Spinner data-icon="inline-start" />}
+                      {isSavingDates ? "Saving selection" : "Confirm & save booking"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleCreateEstimateInvite}
+                      disabled={isGeneratingEstimate || isSavingDates}
+                    >
+                      {isGeneratingEstimate && <Spinner data-icon="inline-start" />}
+                      <Share2Icon data-icon="inline-start" />
+                      {isGeneratingEstimate ? "Generating link..." : "Lock dates & invite companions"}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Dedicated Invite Guests & Share Estimate Portal */}
+          {isEstimateForThisProperty && (
+            <Card>
+              <CardHeader className="border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <UsersIcon className="size-4 text-muted-foreground" />
+                  Invite guests &amp; share estimate
+                </CardTitle>
+                <CardDescription>
+                  Share this unique invite URL with friends or co-guests so they can view and join
+                  this estimate.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="property-invite-url" className="sr-only">
+                    Invite URL
+                  </label>
+                  <Input
+                    id="property-invite-url"
+                    type="text"
+                    readOnly
+                    value={estimateInviteUrl}
+                    className="flex-1 font-mono text-xs"
+                  />
+                  <Button onClick={handleShareEstimate} className="shrink-0">
+                    {copiedEstimateUrl ? (
+                      <CheckIcon data-icon="inline-start" />
+                    ) : (
+                      <LinkIcon data-icon="inline-start" />
+                    )}
+                    {copiedEstimateUrl ? "Copied" : "Copy link"}
+                  </Button>
+                </div>
+
+                {/* Guest List Roster */}
+                <div className="flex flex-col gap-2 border-t pt-4">
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Joined guest roster ({latestEstimate.guests?.length || 0})
+                  </span>
+                  {latestEstimate.guests && latestEstimate.guests.length > 0 ? (
+                    <ul className="flex flex-col gap-1.5">
+                      {latestEstimate.guests.map((gUid: string, idx: number) => {
+                        const details = latestEstimate.guestsDetails?.[gUid];
+                        const label = details
+                          ? `${details.name} (${details.email})`
+                          : gUid === user?.uid
+                            ? "You"
+                            : gUid.substring(0, 8) + "…";
+                        return (
+                          <li
+                            key={idx}
+                            className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
+                          >
+                            <span className="flex items-center gap-2 text-sm">
+                              <UserIcon className="size-4 shrink-0 text-muted-foreground" />
+                              <span className="font-mono text-xs">{label}</span>
+                            </span>
+                            <Badge variant="secondary">Joined</Badge>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-4 text-center">
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        No companions have accepted this invite yet. Share the link above so friends can
+                        join this stay.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    nativeButton={false}
+                    render={<Link href={`/estimate/${latestEstimate.id}`} />}
+                  >
+                    View estimate details &amp; packages
+                    <ArrowRightIcon data-icon="inline-end" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
