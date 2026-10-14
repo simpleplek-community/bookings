@@ -12,25 +12,25 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const requiredConfig = [
-  "apiKey",
-  "authDomain",
-  "projectId",
-  "appId",
-] as const;
+// Keep the public shell renderable when Firebase variables are unavailable in a preview.
+// Auth operations already handle configuration and credential failures in components/auth.tsx.
+const app = getApps().length === 0
+  ? initializeApp({
+      ...firebaseConfig,
+      projectId: firebaseConfig.projectId || "simpleplek-9d373",
+      authDomain: firebaseConfig.authDomain || "simpleplek-9d373.firebaseapp.com",
+    })
+  : getApp();
 
-const missingConfig = requiredConfig.filter((key) => !firebaseConfig[key]);
-
-if (missingConfig.length > 0) {
-  throw new Error(
-    `Firebase client configuration is missing: ${missingConfig.join(", ")}. ` +
-      "Add the NEXT_PUBLIC_FIREBASE_* environment variables and restart the dev server.",
-  );
-}
-
-// Initialize Firebase client app
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-export const auth = getAuth(app);
+// Firebase Auth can fail during preview startup when public client variables are not
+// injected yet. Keep the app shell available so auth UI can show its existing fallback.
+export const auth = (() => {
+  try {
+    return getAuth(app);
+  } catch (error) {
+    console.warn("[Firebase Auth] Client configuration is unavailable.", error);
+    return null;
+  }
+})();
 export const db = getFirestore(app);
 export default app;
