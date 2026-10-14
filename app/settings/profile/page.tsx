@@ -90,6 +90,13 @@ export default function ProfileSettingsPage() {
         form.setErrorMessage(json.error || "Failed to save profile.");
         return false;
       }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("profile-updated", {
+            detail: { displayName: profileToSave.displayName },
+          })
+        );
+      }
       return true;
     } catch (err: any) {
       form.setErrorMessage(err.message || "An unexpected error occurred while saving.");
@@ -168,17 +175,25 @@ export default function ProfileSettingsPage() {
                 The page guests visit to see all your places and book directly.
               </p>
             </div>
-            {profile.subdomain && (
-              <a
-                href={publicUrl(profile.subdomain)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 underline-offset-4 hover:underline"
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                href="/profile"
+                className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                View live page
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
-            )}
+                Subscription & Account →
+              </Link>
+              {profile.subdomain && (
+                <a
+                  href={publicUrl(profile.subdomain)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 underline-offset-4 hover:underline"
+                >
+                  View live page
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
           </div>
         </header>
 

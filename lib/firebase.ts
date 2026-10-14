@@ -954,25 +954,50 @@ export async function getBooking(id: string): Promise<any | null> {
   return null;
 }
 
-export async function promoteUserToAdmin(uid: string, plan?: string): Promise<boolean> {
+export async function promoteUserToAdmin(
+  uid: string,
+  plan?: string,
+  billingInterval?: string,
+  customExpiry?: string
+): Promise<boolean> {
+  const resolvedPlan = plan || "pro";
+  const resolvedInterval = billingInterval || "annual";
+
+  let computedExpiresAt = customExpiry;
+  if (!computedExpiresAt) {
+    const expiry = new Date();
+    if (resolvedInterval === "monthly") {
+      expiry.setDate(expiry.getDate() + 30);
+    } else {
+      expiry.setFullYear(expiry.getFullYear() + 1);
+    }
+    computedExpiresAt = expiry.toISOString();
+  }
+
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
     dbData.userProfiles = dbData.userProfiles || {};
     dbData.userProfiles[uid] = dbData.userProfiles[uid] || {};
     dbData.userProfiles[uid].isAdmin = true;
-    if (plan) {
-      dbData.userProfiles[uid].plan = plan;
-    }
+    dbData.userProfiles[uid].plan = resolvedPlan;
+    dbData.userProfiles[uid].billingInterval = resolvedInterval;
+    dbData.userProfiles[uid].subscriptionExpiresAt = computedExpiresAt;
+    dbData.userProfiles[uid].subscriptionStatus = "active";
+    dbData.userProfiles[uid].subscriptionStartedAt =
+      dbData.userProfiles[uid].subscriptionStartedAt || new Date().toISOString();
     writeMockDb(dbData);
     return true;
   }
 
   try {
-    const updateData: any = { isAdmin: true };
-    if (plan) {
-      updateData.plan = plan;
-    }
+    const updateData: any = {
+      isAdmin: true,
+      plan: resolvedPlan,
+      billingInterval: resolvedInterval,
+      subscriptionExpiresAt: computedExpiresAt,
+      subscriptionStatus: "active",
+    };
     await db.collection("users").doc(uid).set(updateData, { merge: true });
     return true;
   } catch (err) {

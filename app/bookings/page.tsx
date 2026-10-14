@@ -118,6 +118,7 @@ function BookingsCheckoutContent() {
 
   // Admin and filter mode states
   const [viewMode, setViewMode] = useState<"my" | "all">("my");
+  const [stayFilter, setStayFilter] = useState<"all" | "upcoming" | "completed">("all");
   const [latestEstimate, setLatestEstimate] = useState<any | null>(null);
   const [copiedEstimateLink, setCopiedEstimateLink] = useState<boolean>(false);
 
@@ -571,12 +572,35 @@ function BookingsCheckoutContent() {
   };
 
   if (!propertyId) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
     const displayBookings = bookingsList.filter((b) => {
       if (viewMode === "my") {
         const isCustomer = b.customerEmail?.toLowerCase() === user.email?.toLowerCase();
         const isGuest = b.guests && b.guests.includes(user.uid);
-        return isCustomer || isGuest;
+        if (!isCustomer && !isGuest) return false;
       }
+
+      if (stayFilter !== "all") {
+        const isCancelledOrFailed =
+          b.paymentStatus === "failed" ||
+          b.paymentStatus === "cancelled" ||
+          b.paymentStatus === "refunded";
+        if (isCancelledOrFailed) return false;
+
+        const end = new Date(b.toDate);
+        end.setHours(0, 0, 0, 0);
+        const isCompleted = now.getTime() > end.getTime();
+
+        if (stayFilter === "completed") {
+          return isCompleted;
+        }
+        if (stayFilter === "upcoming") {
+          return !isCompleted;
+        }
+      }
+
       return true;
     });
 
@@ -707,21 +731,41 @@ function BookingsCheckoutContent() {
           );
         })()}
 
-        {user?.isAdmin && (
-          <ToggleGroup
-            aria-label="Booking scope"
-            value={[viewMode]}
-            onValueChange={(value) => {
-              const next = value[0];
-              if (next === "my" || next === "all") setViewMode(next);
-            }}
-            variant="outline"
-            size="sm"
-            className="mb-8"
-          >
-            <ToggleGroupItem value="my">My bookings</ToggleGroupItem>
-            <ToggleGroupItem value="all">All system bookings</ToggleGroupItem>
-          </ToggleGroup>
+        {(user?.isAdmin || bookingsList.length > 0) && (
+          <div className="mb-8 flex flex-wrap items-center gap-3">
+            {user?.isAdmin && (
+              <ToggleGroup
+                aria-label="Booking scope"
+                value={[viewMode]}
+                onValueChange={(value) => {
+                  const next = value[0];
+                  if (next === "my" || next === "all") setViewMode(next);
+                }}
+                variant="outline"
+                size="sm"
+              >
+                <ToggleGroupItem value="my">My bookings</ToggleGroupItem>
+                <ToggleGroupItem value="all">All system bookings</ToggleGroupItem>
+              </ToggleGroup>
+            )}
+
+            <ToggleGroup
+              aria-label="Stay timing"
+              value={[stayFilter]}
+              onValueChange={(value) => {
+                const next = value[0];
+                if (next === "all" || next === "upcoming" || next === "completed") {
+                  setStayFilter(next);
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              <ToggleGroupItem value="all">All stays</ToggleGroupItem>
+              <ToggleGroupItem value="upcoming">Upcoming</ToggleGroupItem>
+              <ToggleGroupItem value="completed">Completed stay</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         )}
 
         {displayBookings.length === 0 ? (
@@ -730,19 +774,37 @@ function BookingsCheckoutContent() {
               <EmptyMedia variant="icon">
                 <LuggageIcon />
               </EmptyMedia>
-              <EmptyTitle>No stays found</EmptyTitle>
+              <EmptyTitle>
+                {stayFilter === "upcoming"
+                  ? "No upcoming stays"
+                  : stayFilter === "completed"
+                  ? "No completed stays"
+                  : "No stays found"}
+              </EmptyTitle>
               <EmptyDescription>
-                {viewMode === "my"
+                {stayFilter === "upcoming"
+                  ? "You have no active or upcoming reservations scheduled."
+                  : stayFilter === "completed"
+                  ? "You have no completed stays recorded in your history."
+                  : viewMode === "my"
                   ? "You haven't reserved any stays yet. Visit the homepage to choose a property and dates."
                   : "No bookings recorded in the system ledger yet."}
               </EmptyDescription>
             </EmptyHeader>
-            {viewMode === "my" && (
+            {stayFilter !== "all" ? (
               <EmptyContent>
-                <Button nativeButton={false} render={<Link href="/" />}>
-                  Explore properties
+                <Button variant="outline" onClick={() => setStayFilter("all")}>
+                  Show all stays
                 </Button>
               </EmptyContent>
+            ) : (
+              viewMode === "my" && (
+                <EmptyContent>
+                  <Button nativeButton={false} render={<Link href="/" />}>
+                    Explore properties
+                  </Button>
+                </EmptyContent>
+              )
             )}
           </Empty>
         ) : (
