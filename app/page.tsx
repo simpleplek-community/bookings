@@ -389,7 +389,7 @@ function HomePageContent() {
             </>
           ) : (
             <>
-              <Badge variant="secondary">Surf Yoga Community</Badge>
+              <Badge variant="outline" className="border-foreground/20 bg-card/50">Surf Yoga Community</Badge>
               <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                 Find Your Retreat
               </h1>
