@@ -31,6 +31,12 @@ export default function NavHeader() {
           >
             Bookings
           </Link>
+          <Link
+            href="/faq"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            FAQ
+          </Link>
           {!user?.isAdmin && (
             <Link
               href="/subscribe"
