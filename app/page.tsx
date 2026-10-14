@@ -60,6 +60,14 @@ function formatSlotTime(value: string) {
   });
 }
 
+interface HostSubdomainProfile {
+  hostId: string;
+  subdomain: string;
+  email: string;
+  displayName: string;
+  bio?: string;
+}
+
 function HomePageContent() {
   const searchParams = useSearchParams();
 
@@ -72,7 +80,7 @@ function HomePageContent() {
 
   // Subdomain & Host Profile States
   const [subdomain, setSubdomain] = useState<string | null>(null);
-  const [hostProfile, setHostProfile] = useState<any | null>(null);
+  const [hostProfile, setHostProfile] = useState<HostSubdomainProfile | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,7 +88,10 @@ function HomePageContent() {
     const parts = hostname.split(".");
 
     let sub: string | null = null;
-    if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
+    const querySub = searchParams.get("subdomain");
+    if (querySub) {
+      sub = querySub;
+    } else if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
       if (parts.length > 1 && parts[0] !== "localhost" && parts[0] !== "www") {
         sub = parts[0];
       }
@@ -89,17 +100,21 @@ function HomePageContent() {
     }
 
     if (sub) {
-      setSubdomain(sub);
+      let active = true;
       fetch(`/api/host/profile?subdomain=${sub}`)
         .then(res => res.json())
         .then(resJson => {
-          if (resJson.success) {
+          if (active && resJson.success) {
+            setSubdomain(sub);
             setHostProfile(resJson.data);
           }
         })
         .catch(err => console.error("Failed to fetch host profile:", err));
+      return () => {
+        active = false;
+      };
     }
-  }, []);
+  }, [searchParams]);
 
   // Portal States
   const [properties, setProperties] = useState<Property[]>([]);
@@ -377,8 +392,10 @@ function HomePageContent() {
               <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                 {hostProfile.displayName ? `${hostProfile.displayName}'s Listings` : "Your Cozy Stay"}
               </h1>
-              <p className="max-w-md text-sm leading-relaxed text-muted-foreground text-pretty">
-                Explore custom stays and packages curated directly by {hostProfile.displayName || "our premium host"}.
+              <p className="max-w-lg text-sm leading-relaxed text-muted-foreground text-pretty">
+                {hostProfile.bio?.trim()
+                  ? hostProfile.bio.trim()
+                  : `Explore custom stays and packages curated directly by ${hostProfile.displayName || "our premium host"}.`}
               </p>
               <a
                 href={typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host.replace(`${subdomain}.`, "")}` : "/"}

@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
         hostId,
         subdomain,
         email: profile?.email || "Host",
-        displayName: profile?.displayName || profile?.email?.split("@")[0] || "Host"
+        displayName: profile?.displayName || profile?.email?.split("@")[0] || "Host",
+        bio: profile?.bio || "",
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("GET /api/host/profile error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
