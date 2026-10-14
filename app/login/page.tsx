@@ -36,7 +36,7 @@ export default function LoginPage() {
             <KeyRoundIcon className="size-5" />
           </span>
           <h1 className="font-heading text-2xl font-semibold text-balance">
-            Exclusive packages for inaccessible locations
+            Exclusive packages for unique locations
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Sign in to configure dates and lock bookings

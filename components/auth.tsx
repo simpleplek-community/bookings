@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-interface AuthUser {
+export interface AuthUser {
   uid: string;
   email: string | null;
   displayName: string | null;

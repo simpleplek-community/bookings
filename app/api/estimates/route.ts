@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
       customerId,
       fromDate,
       toDate,
-      total
+      total,
+      guests,
+      guestsDetails
     } = body;
 
     // Validation
@@ -55,7 +57,9 @@ export async function POST(request: NextRequest) {
       customerId,
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
-      total: Number(total)
+      total: Number(total),
+      guests: Array.isArray(guests) ? guests : [],
+      guestsDetails: typeof guestsDetails === "object" && guestsDetails !== null ? guestsDetails : {}
     });
 
     return NextResponse.json({ success: true, estimate }, { status: 201 });

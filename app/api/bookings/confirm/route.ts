@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEstimate, updateEstimateStatus, createBooking, listBookings, getProperty } from "@/lib/firebase";
+import { getEstimate, updateEstimateStatus, createBooking, listBookings, getProperty, updateBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
@@ -35,6 +35,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingBooking) {
+      // Sync guests & details from estimate to existing booking
+      const mergedGuests = Array.from(new Set([...(existingBooking.guests || []), ...(estimate.guests || [])]));
+      const mergedDetails = { ...(estimate.guestsDetails || {}), ...(existingBooking.guestsDetails || {}) };
+      const statusToSet = paymentStatus || existingBooking.paymentStatus || "paid";
+
+      await updateBooking(existingBooking.id, {
+        paymentStatus: statusToSet,
+        guests: mergedGuests,
+        guestsDetails: mergedDetails
+      });
+      existingBooking.paymentStatus = statusToSet;
+      existingBooking.guests = mergedGuests;
+      existingBooking.guestsDetails = mergedDetails;
+
       if ((paymentStatus === "paid" || existingBooking.paymentStatus === "paid") && !existingBooking.confirmationEmailSent) {
         console.log(`[confirm route] Existing booking ${existingBooking.id} found without confirmation email. Sending now...`);
         try {

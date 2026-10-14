@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import NavHeader from "@/components/NavHeader";
+import SiteFooter from "@/components/SiteFooter";
 import { AuthProvider } from "@/components/auth";
 import "./globals.css";
 import Script from "next/script";
@@ -45,6 +46,7 @@ export default function RootLayout({
         <AuthProvider>
           <NavHeader />
           <main className="flex-1 flex flex-col relative">{children}</main>
+          <SiteFooter />
         </AuthProvider>
       </body>
     </html>
