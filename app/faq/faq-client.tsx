@@ -2,50 +2,198 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  Search,
-  X,
-  ChevronDown,
-  ShieldCheck,
-  Calendar,
-  Building2,
-  Sparkles,
-  Link2,
-  Check,
-  ExternalLink,
-  HelpCircle,
-  ArrowRight,
-  BookOpen,
+  ArrowRightIcon,
+  ChevronDownIcon,
+  ExternalLinkIcon,
+  Link2Icon,
+  CheckIcon,
+  SearchIcon,
+  SparklesIcon,
+  ShieldCheckIcon,
+  CalendarIcon,
+  Building2Icon,
+  HelpCircleIcon,
 } from "lucide-react";
-import { FAQ_CATEGORIES, FAQ_ITEMS, FaqItem } from "./faq-data";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { FAQ_CATEGORIES, FAQ_ITEMS, FaqItem, FaqCategory } from "./faq-data";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { GoogleIcon } from "./google-icon";
+import { cn } from "@/lib/utils";
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  "Getting Started & Membership": <ShieldCheck className="size-5 text-primary" />,
-  "Booking & Availability": <Calendar className="size-5 text-primary" />,
-  "Hosting & Property Management": <Building2 className="size-5 text-primary" />,
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "Getting Started & Membership": ShieldCheckIcon,
+  "Booking & Availability": CalendarIcon,
+  "Hosting & Property Management": Building2Icon,
 };
 
+function FaqAccordionItem({
+  item,
+  open,
+  onToggle,
+  copied,
+  onCopy,
+}: {
+  item: FaqItem;
+  open: boolean;
+  onToggle: () => void;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const answerId = `answer-${item.id}`;
+
+  return (
+    <article id={item.id} className="border-b border-border/80 last:border-b-0">
+      <h3 className="flex items-center gap-2 pr-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={answerId}
+          onClick={onToggle}
+          className="flex flex-1 items-center justify-between gap-4 rounded-md px-5 py-4 text-left text-[15px] font-medium text-foreground transition-colors duration-150 hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span>{item.question}</span>
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open && "rotate-180 text-primary"
+            )}
+          />
+        </button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          title={copied ? "Link copied!" : "Copy link to this answer"}
+          aria-label={`Copy permanent link for ${item.question}`}
+          onClick={onCopy}
+          className={cn(
+            "size-8 text-muted-foreground transition-colors hover:text-foreground",
+            copied && "text-emerald-500 hover:text-emerald-600"
+          )}
+        >
+          {copied ? (
+            <CheckIcon className="size-3.5 text-emerald-500" />
+          ) : (
+            <Link2Icon className="size-3.5" />
+          )}
+        </Button>
+      </h3>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            id={answerId}
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-4 px-5 pb-5 pt-1">
+              {/* Highlighted Key Takeaway box for AEO */}
+              <div className="rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <SparklesIcon className="size-3.5" aria-hidden="true" />
+                  Key Takeaway
+                </div>
+                <p className="text-sm font-medium leading-6 text-foreground">
+                  {item.directAnswer}
+                </p>
+              </div>
+
+              {/* Full Answer Context */}
+              <p className="text-sm leading-6 text-muted-foreground">{item.answer}</p>
+
+              {/* Action Button */}
+              {item.actionUrl && item.actionText && (
+                <div className="pt-1">
+                  <Link
+                    href={item.actionUrl}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+                  >
+                    <span>{item.actionText}</span>
+                    <ArrowRightIcon className="size-3.5" />
+                  </Link>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </article>
+  );
+}
+
+function FaqCategorySection({
+  category,
+  items,
+  openIds,
+  onToggle,
+  copiedId,
+  onCopy,
+}: {
+  category: FaqCategory;
+  items: FaqItem[];
+  openIds: Set<string>;
+  onToggle: (id: string) => void;
+  copiedId: string | null;
+  onCopy: (id: string) => void;
+}) {
+  const Icon = CATEGORY_ICONS[category.title] || ShieldCheckIcon;
+  const categoryAnchor = `cat-${category.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+  return (
+    <section aria-labelledby={categoryAnchor} className="scroll-mt-8">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-card text-primary shadow-xs">
+          <Icon className="size-4" aria-hidden="true" />
+        </div>
+        <div>
+          <h2
+            id={categoryAnchor}
+            className="font-heading text-lg font-semibold tracking-tight text-foreground"
+          >
+            {category.title}
+          </h2>
+          <p className="text-sm text-muted-foreground">{category.description}</p>
+        </div>
+      </div>
+
+      <Card className="divide-y divide-border/80 overflow-hidden shadow-xs">
+        {items.map((item) => (
+          <FaqAccordionItem
+            key={item.id}
+            item={item}
+            open={openIds.has(item.id)}
+            onToggle={() => onToggle(item.id)}
+            copied={copiedId === item.id}
+            onCopy={() => onCopy(item.id)}
+          />
+        ))}
+      </Card>
+    </section>
+  );
+}
+
 export default function FaqClient() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [openItems, setOpenItems] = useState<Record<string, boolean>>(() => {
-    // Default all items to open for immediate visibility and quick scanning
-    const initial: Record<string, boolean> = {};
-    FAQ_ITEMS.forEach((item) => {
-      initial[item.id] = true;
-    });
-    return initial;
-  });
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Set<string>>(
+    () => new Set(FAQ_ITEMS.map((item) => item.id))
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Check URL hash on mount or hashchange to scroll to & expand targeted question
+  // Deep linking: check URL hash on mount or hashchange
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace("#", "");
       if (hash) {
-        setOpenItems((prev) => ({ ...prev, [hash]: true }));
+        setOpenIds((prev) => new Set([...prev, hash]));
         const el = document.getElementById(hash);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -58,413 +206,239 @@ export default function FaqClient() {
     return () => window.removeEventListener("hashchange", handleHash);
   }, []);
 
-  const toggleItem = (id: string) => {
-    setOpenItems((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const expandAll = () => {
-    const next: Record<string, boolean> = {};
-    FAQ_ITEMS.forEach((item) => {
-      next[item.id] = true;
-    });
-    setOpenItems(next);
-  };
-
-  const collapseAll = () => {
-    setOpenItems({});
-  };
-
-  const handleCopyLink = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = `${window.location.origin}/faq#${id}`;
-    navigator.clipboard.writeText(url).then(() => {
+  const handleCopyLink = async (id: string) => {
+    const url = `${window.location.origin}${window.location.pathname}#${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggle = (id: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
   };
 
-  // Filter items based on category and query
-  const filteredItems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  const total = FAQ_ITEMS.length;
+  const q = query.trim().toLowerCase();
 
-    return FAQ_ITEMS.filter((item) => {
-      const matchesCategory =
-        selectedCategory === "All" || item.category === selectedCategory;
+  // Filter categories and items
+  const visible = useMemo(
+    () =>
+      FAQ_CATEGORIES.filter((c) => !activeCategory || c.title === activeCategory)
+        .map((c) => ({
+          category: c,
+          items: FAQ_ITEMS.filter((i) => {
+            if (i.category !== c.title) return false;
+            if (!q) return true;
+            return (
+              i.question.toLowerCase().includes(q) ||
+              i.directAnswer.toLowerCase().includes(q) ||
+              i.answer.toLowerCase().includes(q) ||
+              i.keywords.some((k) => k.toLowerCase().includes(q))
+            );
+          }),
+        }))
+        .filter((g) => g.items.length > 0),
+    [activeCategory, q]
+  );
 
-      if (!matchesCategory) return false;
-      if (!query) return true;
+  const anyOpen = visible.some((g) => g.items.some((i) => openIds.has(i.id)));
 
-      const inQuestion = item.question.toLowerCase().includes(query);
-      const inAnswer = item.answer.toLowerCase().includes(query);
-      const inDirect = item.directAnswer.toLowerCase().includes(query);
-      const inKeywords = item.keywords.some((kw) => kw.toLowerCase().includes(query));
+  const toggleAll = () => {
+    if (anyOpen) {
+      setOpenIds(new Set());
+    } else {
+      setOpenIds(new Set(visible.flatMap((g) => g.items.map((i) => i.id))));
+    }
+  };
 
-      return inQuestion || inAnswer || inDirect || inKeywords;
-    });
-  }, [searchQuery, selectedCategory]);
-
-  // Group filtered items by category
-  const groupedItems = useMemo(() => {
-    const groups: { [key: string]: FaqItem[] } = {};
-
-    FAQ_CATEGORIES.forEach((cat) => {
-      groups[cat.title] = [];
-    });
-
-    filteredItems.forEach((item) => {
-      if (!groups[item.category]) {
-        groups[item.category] = [];
-      }
-      groups[item.category].push(item);
-    });
-
-    return groups;
-  }, [filteredItems]);
-
-  const allOpen = Object.values(openItems).filter(Boolean).length === FAQ_ITEMS.length;
+  const filters = [
+    { id: null, label: "All Topics", count: total },
+    ...FAQ_CATEGORIES.map((c) => ({
+      id: c.title,
+      label: c.title,
+      count: FAQ_ITEMS.filter((i) => i.category === c.title).length,
+    })),
+  ];
 
   return (
     <div className="w-full">
-      {/* Search and Filter Controls */}
-      <div className="mb-10 space-y-4">
-        {/* Search Bar */}
-        <div className="relative mx-auto max-w-2xl">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-muted-foreground">
-            <Search className="size-5" />
-          </div>
-          <input
+      {/* Search Bar & Filter Button Controls */}
+      <div className="mt-8 space-y-3">
+        <div className="relative">
+          <SearchIcon
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
             id="faq-search-input"
             type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search questions (e.g. trial, cancel, packages, host, availability)..."
-            className="w-full rounded-2xl border border-border/80 bg-card py-3.5 pl-12 pr-12 text-sm text-foreground shadow-xs transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Search questions (e.g. R15, share block, availability, host, packages)..."
             aria-label="Search FAQs"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9 bg-card text-foreground placeholder:text-muted-foreground"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute inset-y-0 right-0 flex items-center pr-4 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Clear search query"
-            >
-              <X className="size-4" />
-            </button>
-          )}
         </div>
 
-        {/* Category Pills & Bulk Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <button
-              onClick={() => setSelectedCategory("All")}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                selectedCategory === "All"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-              }`}
-            >
-              All Topics ({FAQ_ITEMS.length})
-            </button>
-            {FAQ_CATEGORIES.map((cat) => {
-              const count = FAQ_ITEMS.filter((i) => i.category === cat.title).length;
-              const isSelected = selectedCategory === cat.title;
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by topic">
+            {filters.map((f) => {
+              const active = activeCategory === f.id;
               return (
-                <button
-                  key={cat.title}
-                  onClick={() => setSelectedCategory(cat.title)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                    isSelected
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                  }`}
+                <Button
+                  key={f.label}
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  aria-pressed={active}
+                  onClick={() => setActiveCategory(f.id)}
+                  className="rounded-md"
                 >
-                  {cat.title} ({count})
-                </button>
+                  {f.label}
+                  <span
+                    className={cn(
+                      "ml-1.5 tabular-nums text-xs",
+                      active ? "text-primary-foreground/80 font-semibold" : "text-muted-foreground"
+                    )}
+                  >
+                    {f.count}
+                  </span>
+                </Button>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <button
-              onClick={allOpen ? collapseAll : expandAll}
-              className="cursor-pointer font-medium text-primary hover:underline"
-            >
-              {allOpen ? "Collapse all" : "Expand all"}
-            </button>
-          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={toggleAll}
+            disabled={visible.length === 0}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {anyOpen ? "Collapse all" : "Expand all"}
+          </Button>
         </div>
       </div>
 
-      {/* Zero State */}
-      {filteredItems.length === 0 && (
-        <div className="mx-auto my-12 max-w-md rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center backdrop-blur-xs">
-          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <HelpCircle className="size-6" />
-          </div>
-          <h3 className="font-heading text-lg font-semibold text-foreground">
-            No matching questions found
-          </h3>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            We couldn&apos;t find answers matching &ldquo;{searchQuery}&rdquo;. Try another keyword
-            or reset the search filters.
-          </p>
-          <div className="mt-5 flex justify-center gap-2">
+      {/* Accordion Categories */}
+      <div className="mt-10 space-y-10">
+        {visible.length > 0 ? (
+          visible.map(({ category, items }) => (
+            <FaqCategorySection
+              key={category.title}
+              category={category}
+              items={items}
+              openIds={openIds}
+              onToggle={toggle}
+              copiedId={copiedId}
+              onCopy={handleCopyLink}
+            />
+          ))
+        ) : (
+          <Card className="flex flex-col items-center px-6 py-12 text-center shadow-xs">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <SearchIcon className="size-5" aria-hidden="true" />
+            </div>
+            <p className="mt-3 text-sm font-medium text-foreground">
+              No questions match &ldquo;{query}&rdquo;
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Try a different keyword or browse all topics.
+            </p>
             <Button
-              variant="outline"
               size="sm"
+              variant="outline"
+              className="mt-4"
               onClick={() => {
-                setSearchQuery("");
-                setSelectedCategory("All");
+                setQuery("");
+                setActiveCategory(null);
               }}
             >
-              Reset Search
+              Clear search
             </Button>
-            <Button size="sm" render={<Link href="/subscribe" />}>
-              Explore Membership
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* FAQ Groups */}
-      <div className="space-y-12">
-        {FAQ_CATEGORIES.map((cat) => {
-          const items = groupedItems[cat.title] || [];
-          if (items.length === 0) return null;
-
-          return (
-            <section
-              key={cat.title}
-              aria-labelledby={`cat-${cat.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-              className="scroll-mt-24 space-y-4"
-            >
-              {/* Category Header */}
-              <div className="flex items-center gap-3 border-b border-border/80 pb-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                  {CATEGORY_ICONS[cat.title] || <BookOpen className="size-5 text-primary" />}
-                </div>
-                <div>
-                  <h2
-                    id={`cat-${cat.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-                    className="font-heading text-xl font-bold tracking-tight text-foreground"
-                  >
-                    {cat.title}
-                  </h2>
-                  <p className="text-xs text-muted-foreground sm:text-sm">
-                    {cat.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Accordion List */}
-              <div className="space-y-3">
-                {items.map((item) => {
-                  const isOpen = Boolean(openItems[item.id]);
-                  const isCopied = copiedId === item.id;
-
-                  return (
-                    <article
-                      key={item.id}
-                      id={item.id}
-                      className={`group rounded-xl border transition-all duration-200 ${
-                        isOpen
-                          ? "border-primary/40 bg-card shadow-xs ring-1 ring-primary/20"
-                          : "border-border/80 bg-card/60 hover:border-border hover:bg-card"
-                      }`}
-                    >
-                      {/* Question Toggle Header */}
-                      <button
-                        type="button"
-                        onClick={() => toggleItem(item.id)}
-                        aria-expanded={isOpen}
-                        aria-controls={`answer-${item.id}`}
-                        className="flex w-full items-start justify-between gap-4 p-4 text-left sm:p-5"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span
-                            aria-hidden="true"
-                            className={`mt-1 size-2 shrink-0 rounded-full transition-colors ${
-                              isOpen ? "bg-primary" : "bg-muted-foreground/30 group-hover:bg-primary/50"
-                            }`}
-                          />
-                          <h3 className="font-heading text-base font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:text-lg">
-                            {item.question}
-                          </h3>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-                          {/* Copy Link Button */}
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            title="Copy link to this answer"
-                            onClick={(e) => handleCopyLink(item.id, e)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                handleCopyLink(item.id, e as unknown as React.MouseEvent);
-                              }
-                            }}
-                            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            aria-label={`Copy permanent link for ${item.question}`}
-                          >
-                            {isCopied ? (
-                              <Check className="size-3.5 text-emerald-500" />
-                            ) : (
-                              <Link2 className="size-3.5 opacity-60 group-hover:opacity-100" />
-                            )}
-                          </span>
-
-                          <span
-                            className={`inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-transform duration-200 ${
-                              isOpen ? "rotate-180 text-primary" : ""
-                            }`}
-                            aria-hidden="true"
-                          >
-                            <ChevronDown className="size-4" />
-                          </span>
-                        </div>
-                      </button>
-
-                      {/* Answer Body */}
-                      {isOpen && (
-                        <div
-                          id={`answer-${item.id}`}
-                          className="border-t border-border/50 px-4 pb-5 pt-4 text-sm sm:px-5 sm:text-base"
-                        >
-                          {/* Direct Answer Box for Answer Engine Optimization (AEO) */}
-                          <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-sm text-foreground">
-                            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                              <Sparkles className="size-3.5" />
-                              <span>Key Takeaway</span>
-                            </div>
-                            <p className="leading-relaxed font-medium text-foreground">
-                              {item.directAnswer}
-                            </p>
-                          </div>
-
-                          {/* Full Context Answer */}
-                          <p className="leading-relaxed text-muted-foreground">
-                            {item.answer}
-                          </p>
-
-                          {/* Contextual Action Link */}
-                          {item.actionUrl && item.actionText && (
-                            <div className="mt-4 flex items-center pt-2">
-                              <Link
-                                href={item.actionUrl}
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-opacity hover:opacity-85"
-                              >
-                                <span>{item.actionText}</span>
-                                <ArrowRight className="size-3.5" />
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+          </Card>
+        )}
       </div>
 
-      {/* Google Preferred Source (AEO & AI Search Personalization) */}
-      <section className="mt-14 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 sm:p-7">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="max-w-xl space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Sparkles className="size-3.5" />
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                Google Search & AI Overviews
-              </span>
-            </div>
-            <h3 className="font-heading text-base font-bold text-foreground sm:text-lg">
-              Set Simpleplek as a Preferred Source
-            </h3>
-            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
-              Add Simpleplek to your Google preferences to see our live availability, verified host
-              answers, and accommodation packages prioritized with a &ldquo;Preferred&rdquo; badge in Google
-              AI Overviews.
-            </p>
+      {/* Google Preferred Source Card */}
+      <Card className="mt-12 flex flex-col gap-6 p-6 shadow-xs md:flex-row md:items-center md:justify-between border-primary/20 bg-card">
+        <div className="max-w-lg">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+            <SparklesIcon className="size-3.5" aria-hidden="true" />
+            Google Search & AI Overviews
           </div>
-
-          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-            {/* Google's official Preferred Source button container */}
-            <div
-              {...({ "google-add-preferred-source-btn": "" } as Record<string, unknown>)}
-              data-theme="light"
-              className="flex min-h-[40px] items-center"
-            >
-              {/* Fallback button in case script hasn't rendered or is blocked */}
-              <a
-                href="https://www.google.com/preferences/source?q=simpleplek.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-medium text-foreground shadow-xs transition-colors hover:border-primary/50 hover:bg-muted/50"
-              >
-                <svg className="size-4" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>Add on Google</span>
-                <ExternalLink className="size-3 text-muted-foreground" />
-              </a>
-            </div>
-            <span className="text-[11px] text-muted-foreground/80">
-              Personalizes your Google AI answers
-            </span>
-          </div>
+          <h3 className="mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
+            Set Simpleplek as a Preferred Source
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Add Simpleplek to your Google preferences to see our live availability, verified host
+            answers, and accommodation packages prioritized with a &ldquo;Preferred&rdquo; badge in Google
+            AI Overviews.
+          </p>
         </div>
-      </section>
 
-      {/* Bottom Help and Support Card */}
-      <section className="mt-8 rounded-2xl border border-border bg-gradient-to-br from-card via-card to-muted/40 p-6 sm:p-8">
-        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-                Need More Information?
-              </Badge>
-            </div>
-            <h3 className="font-heading text-lg font-bold text-foreground sm:text-xl">
-              Can&apos;t find the answer you&apos;re looking for?
-            </h3>
-            <p className="max-w-xl text-sm text-muted-foreground">
-              Our team and community are here to help you get the most out of your Simpleplek
-              stays, subscription packages, and property listings.
-            </p>
+        <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
+          {/* Google Publisher Script Button Container */}
+          <div
+            {...({ "google-add-preferred-source-btn": "" } as Record<string, unknown>)}
+            data-theme="light"
+            className="flex min-h-[36px] items-center"
+          >
+            {/* Fallback button linking directly to Google source preferences */}
+            <a
+              href="https://www.google.com/preferences/source?q=simpleplek.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
+            >
+              <GoogleIcon className="size-4" />
+              <span>Add on Google</span>
+              <ExternalLinkIcon className="size-3.5 text-muted-foreground" />
+            </a>
           </div>
+          <span className="text-xs text-muted-foreground">
+            Personalizes your Google AI answers
+          </span>
+        </div>
+      </Card>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" render={<Link href="/bookings" />}>
-              Browse Properties
-            </Button>
-            <Button size="sm" render={<Link href="/subscribe" />}>
-              Become a Pro Member
-              <ArrowRight className="ml-1 size-4" />
-            </Button>
-          </div>
+      {/* Need More Information Card */}
+      <section className="mt-6 flex flex-col gap-6 rounded-lg bg-muted p-6 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-lg">
+          <p className="text-xs font-medium text-muted-foreground">Need More Information?</p>
+          <h3 className="mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
+            Can&apos;t find the answer you&apos;re looking for?
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Our team and community are here to help you get the most out of your Simpleplek stays,
+            subscription packages, and property listings.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/bookings"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Browse Properties
+          </Link>
+          <Link
+            href="/subscribe"
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5")}
+          >
+            <span>Become a Pro Member</span>
+            <ArrowRightIcon className="size-3.5" />
+          </Link>
         </div>
       </section>
     </div>

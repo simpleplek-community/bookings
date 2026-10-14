@@ -3,21 +3,24 @@ import Link from "next/link";
 import Script from "next/script";
 import { FAQ_CATEGORIES, FAQ_ITEMS } from "./faq-data";
 import FaqClient from "./faq-client";
-import { HelpCircle, Sparkles, BookOpen, ChevronRight } from "lucide-react";
+import { ChevronRightIcon, SparklesIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions (FAQ) | Simpleplek",
   description:
-    "Find direct answers about Simpleplek memberships, free trial terms, live availability calendars, booking cancellations, and hosting property packages.",
+    "Find direct answers about Simpleplek memberships, subscription pricing, live availability calendars, booking cancellations, and hosting property packages.",
   keywords: [
     "Simpleplek FAQ",
-    "Simpleplek membership free trial",
+    "Simpleplek membership pricing",
+    "R15 monthly subscription",
+    "R150 annual subscription",
     "why subscribe to Simpleplek",
     "Simpleplek booking availability calendar",
     "Simpleplek cancellation and refund policy",
     "become a host Simpleplek",
     "Simpleplek property packages",
+    "share block fractional property off-plan",
     "AEO Simpleplek answers",
   ],
   alternates: {
@@ -47,7 +50,7 @@ export default function FaqPage() {
     "@type": "FAQPage",
     name: "Simpleplek Frequently Asked Questions",
     description:
-      "Frequently asked questions and direct answers concerning Simpleplek memberships, booking availability, cancellation policies, and hosting packages.",
+      "Frequently asked questions and direct answers concerning Simpleplek memberships, booking availability, cancellation policies, hosting packages, and Share Block properties.",
     url: "https://simpleplek.com/faq",
     mainEntity: FAQ_ITEMS.map((item) => ({
       "@type": "Question",
@@ -79,7 +82,7 @@ export default function FaqPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background py-10 sm:py-16">
+    <div className="min-h-screen w-full bg-background font-sans text-foreground antialiased">
       {/* Schema.org Structured Data */}
       <script
         type="application/ld+json"
@@ -96,63 +99,52 @@ export default function FaqPage() {
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Breadcrumb Navigation */}
-        <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
-          <Link href="/" className="transition-colors hover:text-foreground">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground"
+        >
+          <Link href="/" className="transition-colors duration-150 hover:text-foreground">
             Home
           </Link>
-          <ChevronRight className="size-3" />
-          <span className="font-medium text-foreground">FAQ</span>
+          <ChevronRightIcon className="size-3.5" aria-hidden="true" />
+          <span className="text-foreground">FAQ</span>
         </nav>
 
         {/* Page Header */}
-        <header className="mb-10 text-center sm:mb-14">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
-            <Sparkles className="size-3.5" />
+        <header className="mt-8">
+          <Badge variant="outline" className="gap-1.5 text-xs font-medium border-border">
+            <SparklesIcon className="size-3.5 text-primary" aria-hidden="true" />
             <span>Answer Engine Optimized Knowledge Base</span>
-          </div>
-
-          <h1 className="font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+          </Badge>
+          <h1 className="mt-4 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Frequently Asked Questions
           </h1>
-
-          <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
+          <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
             Quick, reliable answers regarding Simpleplek memberships, live availability
             calendars, cancellation rules, and property hosting packages.
           </p>
-
-          {/* Quick Category Anchors */}
-          <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs">
-            {FAQ_CATEGORIES.map((cat) => {
-              const anchor = `cat-${cat.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-              return (
-                <a
-                  key={cat.title}
-                  href={`#${anchor}`}
-                  className="rounded-full border border-border bg-card px-3 py-1 font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                >
-                  {cat.title}
-                </a>
-              );
-            })}
-          </div>
         </header>
 
-        {/* Interactive FAQ Client (Live Filter, Accordions, Deep-linking, Copy Link) */}
+        {/* Interactive FAQ Client (Live Filter, Framer Motion Accordions, Deep-linking, Copy Link) */}
         <FaqClient />
 
         {/* Crawlable Semantic Fallback for Non-JS / Simple Bot Crawlers */}
         <noscript>
-          <div className="mt-12 space-y-8 border-t pt-8">
+          <div className="mt-12 space-y-6 border-t border-border pt-8">
             <h2 className="text-xl font-bold">All Questions and Answers (Text Archive)</h2>
             {FAQ_ITEMS.map((item) => (
-              <details key={item.id} id={`archive-${item.id}`} className="rounded-lg border p-4">
+              <details
+                key={item.id}
+                id={`archive-${item.id}`}
+                className="rounded-lg border border-border p-4 bg-card"
+              >
                 <summary className="font-semibold text-foreground cursor-pointer">
                   {item.question}
                 </summary>
-                <div className="mt-3 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">
+                <div className="mt-3 text-sm text-muted-foreground space-y-2">
+                  <p className="font-medium text-foreground">
                     Key takeaway: {item.directAnswer}
                   </p>
                   <p>{item.answer}</p>
@@ -161,7 +153,7 @@ export default function FaqPage() {
             ))}
           </div>
         </noscript>
-      </div>
+      </main>
     </div>
   );
 }
