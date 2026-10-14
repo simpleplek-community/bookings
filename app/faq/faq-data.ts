@@ -40,12 +40,12 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "Getting Started & Membership",
     question: "How do I try Simpleplek?",
     directAnswer:
-      "You can explore Simpleplek risk-free through our free trial offer—simply sign up and explore without upfront commitment, or book select properties that require no membership.",
+      "Simpleplek offers flexible membership plans at R15 per month or R150 per year, while select properties can be booked for free without a membership.",
     answer:
-      "You can take advantage of our free trial offer—simply sign up and explore! If you decide not to continue, just cancel your subscription before the trial period ends to avoid being charged. Please note that some properties and packages do not require a membership to book.",
+      "You can join Simpleplek by choosing either a monthly subscription for R15 or an annual subscription for R150 to unlock full platform access and member pricing. Alternatively, you can browse and book select non-member properties simply by creating a free account.",
     actionUrl: "/subscribe",
-    actionText: "Start Free Trial",
-    keywords: ["trial", "free trial", "try", "sign up", "membership", "test", "cancel", "fee"],
+    actionText: "Choose a Membership Plan",
+    keywords: ["subscription", "R15", "R150", "monthly", "annual", "pricing", "sign up", "membership", "fee"],
   },
   {
     id: "why-do-i-need-a-subscription",
