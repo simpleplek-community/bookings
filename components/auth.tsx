@@ -58,6 +58,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearAuthError = () => setAuthError(null);
 
   useEffect(() => {
+    // Skip Firebase listeners when preview credentials are unavailable; mock auth handles local development.
+    if (!auth) {
+      if (isMockAllowed()) {
+        const localSession = localStorage.getItem("auth:mock_session");
+        if (localSession) {
+          setUser(JSON.parse(localSession));
+          setIsMockUser(true);
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
     // Process redirect result if returning from Google Sign-In
     getRedirectResult(auth)
       .then((result) => {
@@ -144,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, pass: string) => {
     setLoading(true);
     try {
+      if (!auth) throw new Error("Firebase Auth is not configured.");
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (err: any) {
       console.warn(`[Firebase Auth] Failed: ${err.message}`);
@@ -171,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, pass: string) => {
     setLoading(true);
     try {
+      if (!auth) throw new Error("Firebase Auth is not configured.");
       await createUserWithEmailAndPassword(auth, email, pass);
     } catch (err: any) {
       console.warn(`[Firebase Auth] Signup failed: ${err.message}`);
@@ -198,6 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      if (!auth) throw new Error("Firebase Auth is not configured.");
       await signInWithRedirect(auth, provider);
     } catch (err) {
       console.warn(`[Firebase Auth] Google login failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -234,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logOut = async () => {
     setLoading(true);
     try {
-      await signOut(auth);
+      if (auth) await signOut(auth);
     } catch (err) {
       console.warn("[Firebase Auth] signOut failed:", err);
     }
