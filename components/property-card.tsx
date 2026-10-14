@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRightIcon, ClockIcon, MoonIcon, PackageIcon, PlusIcon, SparklesIcon } from "lucide-react"
 import { formatZar, rateLabel, resolveBookingType, type Property, type PropertyPackage } from "@/lib/types"
 
@@ -22,7 +22,7 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
     const hasPackages = packages.length > 0
 
     return (
-        <Card className="flex flex-col gap-0 overflow-hidden p-0">
+        <Card className="flex h-full flex-col gap-0 overflow-hidden p-0 transition-shadow hover:shadow-md">
             <div className="relative aspect-[16/10] w-full overflow-hidden bg-secondary">
                 {property.images?.[0] ? (
                     <img
@@ -38,21 +38,17 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                 )}
 
                 <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/75 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-background backdrop-blur-sm">
-                        {isHourly ? (
-                            <ClockIcon className="size-3" aria-hidden="true" />
-                        ) : (
-                            <MoonIcon className="size-3" aria-hidden="true" />
-                        )}
+                    <Badge variant="default" className="gap-1.5 rounded-full bg-foreground/75 px-2.5 py-1 text-[10px] tracking-wider uppercase text-background backdrop-blur-sm hover:bg-foreground/75">
+                        {isHourly ? <ClockIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
                         {isHourly ? "Hourly slots" : "Nightly stay"}
-                    </span>
+                    </Badge>
 
                     <div className="flex items-center gap-1.5">
                         {property.isPro && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-secondary-foreground backdrop-blur-sm shadow-xs">
-                                <SparklesIcon className="size-3" />
+                            <Badge variant="secondary" className="gap-1 rounded-full px-2.5 py-1 text-[10px] tracking-wider uppercase shadow-xs">
+                                <SparklesIcon aria-hidden="true" />
                                 Pro Only
-                            </span>
+                            </Badge>
                         )}
                         {!property.bookingType && (
                             <span
@@ -66,10 +62,10 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                 </div>
             </div>
 
-            <div className="flex flex-1 flex-col gap-3 p-5">
+            <CardHeader className="flex-1 gap-3 p-5">
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                        <h3 className="text-pretty text-base leading-snug font-bold text-foreground">{property.title || property.name}</h3>
+                        <CardTitle className="text-pretty text-base leading-snug">{property.title || property.name}</CardTitle>
                         <p className="mt-0.5 text-xs font-semibold text-primary">
                             {property.location || <span className="text-muted-foreground">No location set</span>}
                         </p>
@@ -81,7 +77,9 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                         <p className="text-lg leading-tight font-bold text-foreground">{formatZar(property.basePricePerNight)}</p>
                     </div>
                 </div>
+            </CardHeader>
 
+            <CardContent className="flex flex-col gap-3 p-5 pt-0">
                 <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                     {property.description || "No description yet."}
                 </p>
@@ -96,7 +94,10 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                     </div>
                 )}
 
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-4">
+                </CardContent>
+
+                <CardFooter className="mt-auto flex-col items-stretch gap-3 border-t border-border px-5 pb-5 pt-4">
+                    <div className="flex items-center justify-between gap-3">
                     <Button
                         variant={hasPackages ? "secondary" : "outline"}
                         size="sm"
@@ -121,9 +122,9 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
                             {standardCount} std{proCount > 0 ? ` · ${proCount} pro` : ""} · {addonCount} add-on
                         </p>
                     )}
-                </div>
+                    </div>
 
-        <Link
+                    <Link
           href={`/admin/properties/${property.id}`}
           className={buttonVariants({
             variant: "ghost",
@@ -133,8 +134,8 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
         >
           Configure
           <ArrowRightIcon data-icon="inline-end" aria-hidden="true" />
-        </Link>
-            </div>
-        </Card>
+                    </Link>
+                </CardFooter>
+            </Card>
     )
 }
