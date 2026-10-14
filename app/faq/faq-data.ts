@@ -149,4 +149,16 @@ export const FAQ_ITEMS: FaqItem[] = [
     actionText: "Go to Listings Dashboard",
     keywords: ["add package", "dashboard", "listings", "property settings", "manage listing", "package options"],
   },
+  {
+    id: "how-to-buy-offplan-share-block",
+    category: "Hosting & Property Management",
+    question: "How do I buy off-plan into a Share Block or fractional property?",
+    directAnswer:
+      "You can buy off-plan into a Share Block by making a standard booking on the platform and selecting the Pro Plan add-on package to pay monthly contributions toward long-term equity.",
+    answer:
+      "To participate in a Pro Plan Share Block or Leasehold acquisition, simply make a standard booking for the property and select the corresponding Pro Plan add-on package during checkout. Your monthly payment covers both operational costs and capital contributions toward acquiring your share. Additionally, you can select an add-on package to formally call or host a Share Block member meeting during your booking dates.",
+    actionUrl: "/terms#section-11",
+    actionText: "Read Share Block Terms",
+    keywords: ["share block", "pro plan", "offplan", "fractional ownership", "leasehold", "add-on", "meeting", "equity", "investment"],
+  },
 ];
