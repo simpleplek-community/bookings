@@ -51,7 +51,6 @@ export default function ProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [simulatingRenewal, setSimulatingRenewal] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -137,37 +136,6 @@ export default function ProfilePage() {
       setErrorMessage(message);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  // Test renewal or simulation helper for dev testing
-  const handleQuickExtend = async (interval: "monthly" | "annual") => {
-    if (!user) return;
-    setSimulatingRenewal(true);
-    try {
-      const res = await fetch("/api/user/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.uid,
-          renewInterval: interval,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        // Refetch profile data
-        const refreshRes = await fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`);
-        const refreshJson = await refreshRes.json();
-        if (refreshJson.success && refreshJson.data) {
-          setProfileData(refreshJson.data);
-        }
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }
-    } catch (err: unknown) {
-      console.error("Renewal simulation failed:", err);
-    } finally {
-      setSimulatingRenewal(false);
     }
   };
 
@@ -464,33 +432,6 @@ export default function ProfilePage() {
                     </Button>
                   </Link>
                 )}
-
-                {/* Developer / Testing shortcuts */}
-                <div className="mt-2 pt-2 border-t border-dashed border-border/60 w-full text-center">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/80 block mb-2">
-                    Quick Expiration Testing
-                  </span>
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7 px-2.5"
-                      disabled={simulatingRenewal}
-                      onClick={() => handleQuickExtend("monthly")}
-                    >
-                      {simulatingRenewal ? <Loader2 className="size-3 animate-spin" /> : "+30 Days (Monthly)"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7 px-2.5"
-                      disabled={simulatingRenewal}
-                      onClick={() => handleQuickExtend("annual")}
-                    >
-                      {simulatingRenewal ? <Loader2 className="size-3 animate-spin" /> : "+1 Year (Annual)"}
-                    </Button>
-                  </div>
-                </div>
               </CardFooter>
             </Card>
           </section>
