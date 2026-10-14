@@ -193,7 +193,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch(`/api/user/profile?userId=${firebaseUser.uid}&email=${firebaseUser.email || ""}`);
             const result = await res.json();
             if (result.success && result.data) {
-              setUser(prev => prev && prev.uid === firebaseUser.uid ? { ...prev, isAdmin: result.data.isAdmin } : prev);
+              setUser(prev => prev && prev.uid === firebaseUser.uid ? { 
+                ...prev, 
+                isAdmin: result.data.isAdmin,
+                displayName: result.data.displayName || prev.displayName
+              } : prev);
             }
           } catch (err) {
             console.error("Failed to query profile for admin status:", err);
@@ -213,9 +217,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const result = await res.json();
               if (result.success && result.data) {
                 const updatedAdmin = result.data.isAdmin;
+                const updatedName = result.data.displayName || parsedUser.displayName;
                 setUser(prev => {
                   if (prev && prev.uid === parsedUser.uid) {
-                    const updated = { ...prev, isAdmin: updatedAdmin };
+                    const updated = { ...prev, isAdmin: updatedAdmin, displayName: updatedName };
                     localStorage.setItem("auth:mock_session", JSON.stringify(updated));
                     return updated;
                   }

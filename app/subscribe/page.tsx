@@ -59,7 +59,7 @@ function SubscribeContent() {
       const res = await fetch("/api/subscribe/mock-confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.uid, plan: "pro" })
+        body: JSON.stringify({ userId: user.uid, plan: "pro", billingInterval: plan })
       });
       const result = await res.json();
       if (res.ok && result.success) {

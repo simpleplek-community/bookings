@@ -104,8 +104,8 @@
   --faint: #b0b0b0;
   --line: #ebebeb;
   --line-strong: #c1c1c1;
-  --brand: #e0234e;
-  --brand-hover: #c81d44;
+  --brand: #00B09C;
+  --brand-hover: #027d6f;
   --pro: #b7791f;
   --pro-strong: #8a5a12;
   --pro-soft: #fdf6e7;
@@ -177,9 +177,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   html {
     @apply font-sans;
   }

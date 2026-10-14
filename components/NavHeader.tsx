@@ -55,12 +55,16 @@ export default function NavHeader() {
             <Spinner className="size-4 text-muted-foreground" />
           ) : user ? (
             <div className="flex items-center gap-3">
-              <div className="hidden flex-col items-end gap-0.5 sm:flex">
-                <span className="text-sm font-medium leading-none">
+              <Link
+                href="/profile"
+                className="hidden flex-col items-end gap-0.5 sm:flex group transition-opacity hover:opacity-80"
+                title="View Profile & Subscription"
+              >
+                <span className="text-sm font-medium leading-none group-hover:underline">
                   {user.displayName || user.email?.split("@")[0]}
                 </span>
                 <span className="text-xs leading-none text-muted-foreground">{user.email}</span>
-              </div>
+              </Link>
               <Button variant="outline" size="sm" onClick={logOut}>
                 Sign out
               </Button>
