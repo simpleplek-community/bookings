@@ -154,12 +154,12 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "Booking & Availability",
     question: "Can invited guests co-pay for bookings and add-on purchases?",
     directAnswer:
-      "Yes, invited guests can purchase host add-ons and contribute directly toward Pro Plan add-ons, including Share Block investments.",
+      "Yes, invited guests will appear on the booking, can purchase standard host add-ons, and can contribute to Pro Share Block add-ons if they have an active membership.",
     answer:
-      "Yes! Invited guests are able to purchase extra add-ons made available by the host during a stay. Additionally, guests can co-pay and contribute directly toward Pro Plan add-on packages, including monthly contributions toward Share Block property investments.",
+      "Yes! Invited guests added to a reservation will officially appear on the booking details. Guests can purchase standard add-ons provided by the host. To contribute toward Pro Share Block add-ons or fractional investment packages, invited guests must hold an active Simpleplek membership.",
     actionUrl: "/bookings",
     actionText: "Learn About Split Bookings",
-    keywords: ["copay", "guest", "invite", "add-on", "share block", "split payment", "pro plan", "contribution"],
+    keywords: ["copay", "guest", "invite", "add-on", "share block", "split payment", "pro plan", "membership", "contribution"],
   },
   {
     id: "how-to-buy-offplan-share-block",
