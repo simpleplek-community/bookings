@@ -19,10 +19,8 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { Separator } from "@/components/ui/separator";
 import { publicUrl } from "@/utils/subdomain";
 
 const BIO_MAX = 160;
@@ -229,9 +227,16 @@ export default function ProfilePage() {
     displayName.trim() !== (profileData?.displayName || user.displayName || "").trim() ||
     bio.trim() !== (profileData?.bio || "").trim();
 
+const proFeatures = [
+  "Unlimited property listings and deals",
+  "Live 2-way Airbnb & Google Calendar sync",
+  "Exclusive member pricing & package builder",
+  "Custom branded host address (subdomain)",
+];
+
   return (
-    <div className="min-h-screen bg-background py-10 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <div className="w-full min-h-screen bg-background text-foreground text-base leading-6">
+      <div className="mx-auto max-w-3xl px-4 py-10 space-y-8">
         {/* Navigation & Header */}
         <header className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -239,7 +244,7 @@ export default function ProfilePage() {
               href="/"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ArrowLeft className="size-4" />
+              <ArrowLeft className="h-4 w-4" />
               Back to Home
             </Link>
             {profileData?.isAdmin && (
@@ -252,7 +257,7 @@ export default function ProfilePage() {
             )}
           </div>
 
-          <div className="flex flex-col gap-1 border-b border-border/40 pb-5">
+          <div className="flex flex-col gap-1 border-b border-border pb-5">
             <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Account & Profile
             </h1>
@@ -268,322 +273,260 @@ export default function ProfilePage() {
           </Alert>
         )}
 
-        {saveSuccess && (
-          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
-            <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
-            <AlertDescription>Your profile information has been saved successfully.</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start">
-          {/* Subscription Section (Highlighted) */}
-          <section className="lg:col-span-5 flex flex-col gap-6" aria-labelledby="subscription-heading">
-            <Card className="relative overflow-hidden border-border/80 shadow-sm">
-              {/* Subtle top accent gradient */}
-              <div
-                className={`h-2 w-full ${
-                  isPro && !isExpired
-                    ? "bg-gradient-to-r from-primary via-emerald-500 to-teal-400"
-                    : isExpired
-                    ? "bg-destructive"
-                    : "bg-muted"
-                }`}
-              />
-
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Membership
-                    </span>
-                    <CardTitle id="subscription-heading" className="text-xl font-bold mt-0.5">
-                      {isPro ? "Pro Subscription" : "Standard Plan"}
-                    </CardTitle>
-                  </div>
-                  {isPro && !isExpired ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-semibold px-2.5 py-0.5 flex items-center gap-1.5">
-                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Active
-                    </Badge>
-                  ) : isExpired ? (
-                    <Badge variant="destructive">Expired</Badge>
-                  ) : (
-                    <Badge variant="secondary">Free Tier</Badge>
-                  )}
+        <section
+          aria-labelledby="subscription-heading"
+          className="relative overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+        >
+          <div className="h-1 w-full bg-primary" />
+          <div className="p-6 border-b border-border">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Membership</span>
+                <div id="subscription-heading" className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+                  {isPro ? "Pro Subscription" : "Standard Plan"}
                 </div>
-                <CardDescription className="text-xs mt-1">
-                  {isPro
-                    ? "You have full Pro privileges including live calendar sync and exclusive packages."
-                    : "Upgrade to unlock listing capabilities and calendar integration."}
-                </CardDescription>
-              </CardHeader>
+              </div>
+              {isPro && !isExpired ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  Active
+                </span>
+              ) : isExpired ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
+                  <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                  Expired
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Free Tier
+                </span>
+              )}
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              {isPro
+                ? "You have full Pro privileges including live calendar sync and exclusive packages."
+                : "Upgrade to unlock listing capabilities and calendar integration."}
+            </div>
+          </div>
 
-              <CardContent className="space-y-5">
-                {/* Expiration Details Card */}
-                <div className="rounded-xl border border-border bg-card/60 p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Calendar className="size-4 text-primary" />
-                    <span>SUBSCRIPTION EXPIRATION</span>
-                  </div>
-
-                  {isPro && expiresAtDate ? (
-                    <div className="space-y-2">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-foreground tracking-tight">
-                          {formattedExpiryDate}
+          <div className="grid gap-6 p-6 md:grid-cols-2">
+            <div className="rounded-lg bg-muted/60 p-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                <span className="text-xs font-semibold tracking-wide">SUBSCRIPTION EXPIRATION</span>
+              </div>
+              <div className="mt-2 text-sm font-medium">
+                {isPro && expiresAtDate ? (
+                  <div className="space-y-1">
+                    <div className="text-base font-bold text-foreground">
+                      {formattedExpiryDate}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      {!isExpired ? (
+                        <span className="font-medium text-primary">
+                          {daysRemaining !== null
+                            ? `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
+                            : "Active cycle"}
                         </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-xs">
-                        <Clock className="size-3.5 text-muted-foreground" />
-                        {!isExpired ? (
-                          <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                            {daysRemaining !== null
-                              ? `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
-                              : "Active cycle"}
-                          </span>
-                        ) : (
-                          <span className="font-medium text-destructive">
-                            Subscription expired on {formattedExpiryDate}
-                          </span>
-                        )}
-                        <span className="text-muted-foreground/60">•</span>
-                        <span className="text-muted-foreground">{billingIntervalLabel}</span>
-                      </div>
-
-                      {/* Visual cycle progress bar */}
-                      {!isExpired && daysRemaining !== null && (
-                        <div className="pt-2">
-                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full bg-primary rounded-full transition-all duration-500"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(
-                                    5,
-                                    profileData?.billingInterval === "monthly"
-                                      ? (daysRemaining / 30) * 100
-                                      : (daysRemaining / 365) * 100
-                                  )
-                                )}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
+                      ) : (
+                        <span className="font-medium text-destructive">
+                          Expired on {formattedExpiryDate}
+                        </span>
                       )}
+                      <span>•</span>
+                      <span>{billingIntervalLabel}</span>
                     </div>
-                  ) : isPro ? (
-                    <div className="text-sm font-medium text-foreground">
-                      Active membership — Continuous access
-                    </div>
+                  </div>
+                ) : isPro ? (
+                  "Active membership — Continuous access"
+                ) : (
+                  "No active Pro subscription"
+                )}
+              </div>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-foreground">Included with Pro:</span>
+              <ul className="mt-2 space-y-2">
+                {proFeatures.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-sm">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="text-muted-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border bg-muted/30 p-6 sm:flex-row">
+            <Link href="/subscribe" className="flex-1">
+              <button
+                type="button"
+                id="manage-subscription-btn"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+              >
+                <Zap className="h-4 w-4" aria-hidden="true" />
+                {isPro && !isExpired ? "Manage / Renew Subscription" : "Subscribe to Pro"}
+              </button>
+            </Link>
+            {profileData?.isAdmin && (
+              <Link href="/settings/profile" className="flex-1">
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                >
+                  <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Public Address Settings
+                </button>
+              </Link>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="profile-heading">
+          <form
+            onSubmit={handleSaveProfile}
+            className="rounded-xl border border-border bg-card shadow-sm"
+          >
+            <div className="border-b border-border p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div id="profile-heading" className="text-lg font-semibold tracking-tight text-foreground">
+                    Profile Details
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Shown at the top of your public listings and in the site footer.
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
+                  {displayName.trim().charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || "J"}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6 p-6">
+              <div className="space-y-2">
+                <label htmlFor="displayName" className="text-sm font-medium text-foreground">
+                  Host or business name
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  placeholder="e.g. Llandudno Stays"
+                  aria-invalid={!!nameError}
+                  aria-describedby={nameError ? "displayName-error" : undefined}
+                  value={displayName}
+                  onChange={(e) => {
+                    setDisplayName(e.target.value);
+                    if (nameError) setNameError(null);
+                  }}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                {nameError ? (
+                  <p id="displayName-error" className="text-xs text-destructive font-medium">
+                    {nameError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    This name is displayed in the site footer and throughout your guest storefront.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="bio" className="text-sm font-medium text-foreground">
+                    Short intro
+                  </label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{bio.length}/{BIO_MAX}</span>
+                </div>
+                <textarea
+                  id="bio"
+                  rows={3}
+                  maxLength={BIO_MAX}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Small, characterful places a short walk from the beach..."
+                  className="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+
+              <div role="separator" aria-orientation="horizontal" className="h-px w-full bg-border" />
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Email Address
+                  </label>
+                  <div className="flex h-9 items-center justify-between gap-2 rounded-md bg-muted/60 px-3 text-sm">
+                    <span className="truncate text-foreground">{user.email || "No email associated"}</span>
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-primary" aria-label="Verified" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Host Web Address
+                  </label>
+                  {profileData?.subdomain ? (
+                    <a
+                      href={publicUrl(profileData.subdomain)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-border px-3 text-sm text-primary transition-colors duration-150 hover:bg-muted"
+                    >
+                      <span className="truncate font-medium">{profileData.subdomain}.simpleplek.com</span>
+                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    </a>
                   ) : (
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">No active Pro subscription</p>
-                      <p className="text-xs text-muted-foreground">
-                        Your account is currently on the Standard tier. Subscribe to activate full Pro benefits.
-                      </p>
-                    </div>
+                    <Link
+                      href="/settings/profile"
+                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                    >
+                      <span>Claim host address →</span>
+                    </Link>
                   )}
                 </div>
+              </div>
+            </div>
 
-                {/* Benefits List */}
-                <div className="space-y-2 pt-1">
-                  <span className="text-xs font-semibold text-foreground">Included with Pro:</span>
-                  <ul className="space-y-2 text-xs text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                      <span>Unlimited property listings and deals</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                      <span>Live 2-way Airbnb & Google Calendar sync</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                      <span>Exclusive member pricing & package builder</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                      <span>Custom branded host address (subdomain)</span>
-                    </li>
-                  </ul>
-                </div>
-              </CardContent>
-
-              <CardFooter className="flex flex-col gap-2.5 pt-2 border-t border-border/40">
-                <Link href="/subscribe" className="w-full">
-                  <Button
-                    className="w-full"
-                    variant={isPro && !isExpired ? "outline" : "default"}
-                    id="manage-subscription-btn"
-                  >
-                    <Zap className="size-4 mr-1.5" />
-                    {isPro && !isExpired ? "Manage / Renew Subscription" : "Subscribe to Pro"}
-                  </Button>
-                </Link>
-
-                {profileData?.isAdmin && (
-                  <Link href="/settings/profile" className="w-full">
-                    <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground">
-                      <Globe className="size-3.5 mr-1.5" />
-                      Public Address Settings
-                    </Button>
-                  </Link>
+            <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-4">
+              <div>
+                {saveSuccess && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                    <Check className="h-4 w-4" />
+                    Saved & synchronized
+                  </span>
                 )}
-              </CardFooter>
-            </Card>
-          </section>
-
-          {/* Profile Details Form (from app/settings/profile/page.tsx:L211-L237) */}
-          <section className="lg:col-span-7 flex flex-col gap-6" aria-labelledby="profile-heading">
-            <form onSubmit={handleSaveProfile} className="space-y-6">
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle id="profile-heading" className="text-xl font-bold">
-                        Profile Details
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        Shown at the top of your public listings and in the site footer.
-                      </CardDescription>
-                    </div>
-                    <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base">
-                      {displayName.trim() ? displayName.trim().charAt(0).toUpperCase() : user.email?.charAt(0).toUpperCase() || "P"}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-5">
-                  {/* Host or business name (as specified in app/settings/profile/page.tsx:L211-L237) */}
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="displayName" className="text-sm font-semibold text-foreground">
-                      Host or business name
-                    </label>
-                    <input
-                      id="displayName"
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => {
-                        setDisplayName(e.target.value);
-                        if (nameError) setNameError(null);
-                      }}
-                      placeholder="e.g. Llandudno Stays"
-                      aria-invalid={!!nameError}
-                      aria-describedby={nameError ? "displayName-error" : undefined}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm font-medium text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                    {nameError ? (
-                      <p id="displayName-error" className="text-xs font-medium text-destructive">
-                        {nameError}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        This name is displayed in the site footer and throughout your guest storefront.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Short intro / Bio */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-baseline justify-between">
-                      <label htmlFor="bio" className="text-sm font-semibold text-foreground">
-                        Short intro
-                      </label>
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {bio.length}/{BIO_MAX}
-                      </span>
-                    </div>
-                    <textarea
-                      id="bio"
-                      rows={3}
-                      maxLength={BIO_MAX}
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      placeholder="Small, characterful places a short walk from the beach..."
-                      className="w-full resize-none rounded-xl border border-border bg-background p-3.5 text-sm font-medium text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                  </div>
-
-                  <Separator />
-
-                  {/* Email & Account info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <Mail className="size-3.5" /> Email Address
-                      </label>
-                      <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-3.5 py-2.5 text-sm text-foreground">
-                        <span className="truncate">{user.email || "No email associated"}</span>
-                        <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 ml-2" />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <Globe className="size-3.5" /> Host Web Address
-                      </label>
-                      {profileData?.subdomain ? (
-                        <a
-                          href={publicUrl(profileData.subdomain)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-3.5 py-2.5 text-sm text-primary hover:underline"
-                        >
-                          <span className="truncate">{profileData.subdomain}.simpleplek.com</span>
-                          <ExternalLink className="size-3.5 shrink-0 ml-2" />
-                        </a>
-                      ) : (
-                        <Link
-                          href="/settings/profile"
-                          className="flex items-center justify-between rounded-xl border border-dashed border-border/80 px-3.5 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <span>Claim host address →</span>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-
-                <CardFooter className="flex items-center justify-between pt-3 border-t border-border/40">
-                  <div className="text-xs text-muted-foreground">
-                    {saveSuccess && (
-                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                        <Check className="size-3.5" /> Saved & synchronized
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {isFormDirty && !isSaving && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDisplayName(profileData?.displayName || user.displayName || "");
-                          setBio(profileData?.bio || "");
-                          setNameError(null);
-                        }}
-                        className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5"
-                      >
-                        Discard
-                      </button>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={isSaving || !displayName.trim() || !isFormDirty}
-                      id="save-profile-btn"
-                    >
-                      {isSaving && <Loader2 className="size-4 mr-1.5 animate-spin" />}
-                      {isSaving ? "Saving…" : "Save changes"}
-                    </Button>
-                  </div>
-                </CardFooter>
-              </Card>
-            </form>
-          </section>
-        </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {isFormDirty && !isSaving && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDisplayName(profileData?.displayName || user.displayName || "");
+                      setBio(profileData?.bio || "");
+                      setNameError(null);
+                    }}
+                    className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 cursor-pointer"
+                  >
+                    Discard
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  id="save-profile-btn"
+                  disabled={!isFormDirty || isSaving || !displayName.trim()}
+                  className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+                >
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSaving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
       </div>
     </div>
   );
