@@ -150,6 +150,18 @@ export const FAQ_ITEMS: FaqItem[] = [
     keywords: ["add package", "dashboard", "listings", "property settings", "manage listing", "package options"],
   },
   {
+    id: "can-invited-guests-copay-and-buy-addons",
+    category: "Booking & Availability",
+    question: "Can invited guests co-pay for bookings and add-on purchases?",
+    directAnswer:
+      "Yes, invited guests can purchase host add-ons and contribute directly toward Pro Plan add-ons, including Share Block investments.",
+    answer:
+      "Yes! Invited guests are able to purchase extra add-ons made available by the host during a stay. Additionally, guests can co-pay and contribute directly toward Pro Plan add-on packages, including monthly contributions toward Share Block property investments.",
+    actionUrl: "/bookings",
+    actionText: "Learn About Split Bookings",
+    keywords: ["copay", "guest", "invite", "add-on", "share block", "split payment", "pro plan", "contribution"],
+  },
+  {
     id: "how-to-buy-offplan-share-block",
     category: "Hosting & Property Management",
     question: "How do I buy off-plan into a Share Block or fractional property?",
