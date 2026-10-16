@@ -1247,4 +1247,78 @@ function getServiceAccountCredentials(): any {
   }
 }
 
+export interface TermsConsentAuditRecord {
+  id?: string;
+  userId: string;
+  ipAddress: string;
+  userAgent?: string;
+  plan: "monthly" | "annual";
+  termsVersion: string;
+  sectionsAcknowledged: string[];
+  consentStatement: string;
+  agreedAt: string;
+}
+
+export async function logTermsConsent(
+  record: Omit<TermsConsentAuditRecord, "id" | "agreedAt"> & { agreedAt?: string }
+): Promise<TermsConsentAuditRecord> {
+  const db = getFirestore();
+  const consentId = `consent_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const fullRecord: TermsConsentAuditRecord = {
+    ...record,
+    id: consentId,
+    agreedAt: record.agreedAt || new Date().toISOString(),
+  };
+
+  if (isMockMode || !db) {
+    const dbData = readMockDb();
+    dbData.termsAuditLogs = dbData.termsAuditLogs || [];
+    dbData.termsAuditLogs.push(fullRecord);
+    dbData.userProfiles = dbData.userProfiles || {};
+    dbData.userProfiles[record.userId] = dbData.userProfiles[record.userId] || {};
+    dbData.userProfiles[record.userId].latestTermsConsent = fullRecord;
+    dbData.userProfiles[record.userId].termsAgreedAt = fullRecord.agreedAt;
+    writeMockDb(dbData);
+    return fullRecord;
+  }
+
+  try {
+    await db.collection("terms_audit_logs").doc(consentId).set(fullRecord);
+    await db.collection("users").doc(record.userId).set(
+      {
+        latestTermsConsent: fullRecord,
+        termsAgreedAt: fullRecord.agreedAt,
+      },
+      { merge: true }
+    );
+    return fullRecord;
+  } catch (err) {
+    console.error("[Firebase] logTermsConsent error:", err);
+    throw err;
+  }
+}
+
+export async function getTermsConsentLogs(userId?: string): Promise<TermsConsentAuditRecord[]> {
+  const db = getFirestore();
+  if (isMockMode || !db) {
+    const dbData = readMockDb();
+    const logs: TermsConsentAuditRecord[] = dbData.termsAuditLogs || [];
+    if (userId) {
+      return logs.filter((log) => log.userId === userId);
+    }
+    return logs;
+  }
+
+  try {
+    const collectionRef = db.collection("terms_audit_logs");
+    const query = userId ? collectionRef.where("userId", "==", userId) : collectionRef;
+    const snap = await query.get();
+    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as TermsConsentAuditRecord));
+  } catch (err) {
+    console.error("[Firebase] getTermsConsentLogs error:", err);
+    return [];
+  }
+}
+
+
 

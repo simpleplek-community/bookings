@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCheckout } from "@/lib/yoco";
 import { getSessionUser, unauthorized } from "@/lib/auth";
+import { logTermsConsent } from "@/lib/firebase";
+
+function getClientIp(request: NextRequest): string {
+  const xForwardedFor = request.headers.get("x-forwarded-for");
+  if (xForwardedFor) {
+    const first = xForwardedFor.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
+  const cfConnectingIp = request.headers.get("cf-connecting-ip");
+  if (cfConnectingIp) return cfConnectingIp.trim();
+  return "127.0.0.1";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,14 +23,43 @@ export async function POST(request: NextRequest) {
     const userId = session.uid;
 
     const body = await request.json().catch(() => ({}));
-    const { plan } = body;
+    const { plan, consentAcknowledged } = body;
 
     if (!plan) {
       return NextResponse.json({ success: false, error: "Missing required parameter (plan)" }, { status: 400 });
     }
 
+    if (!consentAcknowledged) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Explicit consent to Share Block / Leasehold Terms & Conditions (Sections 11 & 12) is required before proceeding to payment.",
+        },
+        { status: 400 }
+      );
+    }
+
     const isAnnual = plan === "annual";
     const resolvedAmountInCents = isAnnual ? 15000 : 1500;
+    const ipAddress = getClientIp(request);
+    const userAgent = request.headers.get("user-agent") || undefined;
+
+    // Log timestamped audit record of explicit consent in database
+    const auditRecord = await logTermsConsent({
+      userId,
+      ipAddress,
+      userAgent,
+      plan: isAnnual ? "annual" : "monthly",
+      termsVersion: "2025.1",
+      sectionsAcknowledged: [
+        "11.2 Pro Membership: Share Block / Leasehold Acquisition",
+        "12 Pro Plan Cancellation & Member Credit System",
+      ],
+      consentStatement:
+        "I have read, understood, and explicitly agree to the Share Block / Leasehold Acquisition Terms & Conditions (Sections 11 & 12), including capital allocation, operational levies, cancellation penalties, and closed-loop non-cash Member Credits.",
+    });
+
+    console.log(`[Terms Audit] Logged consent ${auditRecord.id} for user ${userId} from IP ${ipAddress} for plan ${plan}.`);
 
     const host = request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
@@ -24,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     const description = `Pro Subscription (${isAnnual ? "Annual" : "Monthly"} Plan)`;
 
-    // Initialize Yoco checkout flow with "subscription" metadata
+    // Initialize Yoco checkout flow with "subscription" metadata and consentAuditId
     const redirectUrl = await createCheckout({
       amountInCents: resolvedAmountInCents,
       description,
@@ -32,14 +75,16 @@ export async function POST(request: NextRequest) {
         intent: "subscription",
         userId,
         plan: "pro",
-        billingInterval: isAnnual ? "annual" : "monthly"
+        billingInterval: isAnnual ? "annual" : "monthly",
+        consentAuditId: auditRecord.id,
       },
-      siteUrl
+      siteUrl,
     });
 
-    return NextResponse.json({ success: true, redirectUrl });
-  } catch (err: any) {
+    return NextResponse.json({ success: true, redirectUrl, consentAuditId: auditRecord.id });
+  } catch (err: unknown) {
     console.error("Subscription checkout error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "An error occurred";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

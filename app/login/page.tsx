@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { KeyRoundIcon } from "lucide-react";
 
 import { useAuth, AuthCard } from "@/components/auth";
-import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
@@ -48,13 +47,14 @@ export default function LoginPage() {
 
       <nav
         aria-label="Legal"
-        className="flex items-center gap-2 text-sm text-muted-foreground"
+        className="flex flex-wrap items-center justify-center gap-1.5 text-center text-sm text-muted-foreground"
       >
-        <Link href="/terms" className="hover:text-foreground">
+        <span>By continuing I agree to the</span>
+        <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
           Terms of service
         </Link>
         <span aria-hidden="true">•</span>
-        <Link href="/privacy" className="hover:text-foreground">
+        <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground">
           Privacy policy
         </Link>
       </nav>

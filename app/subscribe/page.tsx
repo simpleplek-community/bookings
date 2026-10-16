@@ -8,14 +8,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Scale, ShieldCheck } from "lucide-react";
+import { ProTermsCheckoutModal } from "@/components/subscribe/ProTermsCheckoutModal";
 
 function SubscribeContent() {
   const { user, loading } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const handleSubscribe = async (plan: "monthly" | "annual") => {
+  // Modal checkout flow states
+  const [checkoutModalPlan, setCheckoutModalPlan] = useState<"monthly" | "annual" | null>(null);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isMockBypassMode, setIsMockBypassMode] = useState(false);
+
+  const initiateSubscribe = (plan: "monthly" | "annual", isMock = false) => {
+    if (!user) {
+      setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
+      return;
+    }
+    setCheckoutModalPlan(plan);
+    setIsMockBypassMode(isMock);
+    setIsCheckoutModalOpen(true);
+    setStatusMessage(null);
+  };
+
+  const handleConfirmSubscription = async (plan: "monthly" | "annual") => {
     if (!user) {
       setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
       return;
@@ -25,56 +42,53 @@ function SubscribeContent() {
     setStatusMessage(null);
 
     try {
-      const amountInCents = plan === "monthly" ? 1500 : 15000;
-      const res = await fetch("/api/subscribe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.uid,
-          plan,
-          amountInCents
-        })
-      });
-
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || "Failed to create checkout transaction.");
-      }
-
-      // Redirect to Yoco Checkout page
-      window.location.href = result.redirectUrl;
-    } catch (err: any) {
-      console.error(err);
-      setStatusMessage({ type: "error", text: err.message || "An error occurred." });
-      setIsRedirecting(false);
-    }
-  };
-
-  // Developer Bypass to become Pro instantly (in mock mode or development)
-  const handleMockBypass = async (plan: "monthly" | "annual") => {
-    if (!user) return;
-    setIsRedirecting(true);
-    setStatusMessage(null);
-    try {
-      const res = await fetch("/api/subscribe/mock-confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.uid, plan: "pro", billingInterval: plan })
-      });
-      const result = await res.json();
-      if (res.ok && result.success) {
-        setStatusMessage({
-          type: "success",
-          text: `Success! Promoted to Pro (${plan === "monthly" ? "Monthly Plan" : "Annual Plan"}). Reloading session...`
+      if (isMockBypassMode) {
+        const res = await fetch("/api/subscribe/mock-confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.uid,
+            plan: "pro",
+            billingInterval: plan,
+            consentAcknowledged: true,
+          }),
         });
-        setTimeout(() => {
-          window.location.href = "/admin/properties";
-        }, 1500);
+        const result = await res.json();
+        if (res.ok && result.success) {
+          setIsCheckoutModalOpen(false);
+          setStatusMessage({
+            type: "success",
+            text: `Success! Audit log recorded (${result.consentAuditId || "saved"}). Promoted to Pro (${plan === "monthly" ? "Monthly Plan" : "Annual Plan"}). Reloading session...`,
+          });
+          setTimeout(() => {
+            window.location.href = "/admin/properties";
+          }, 1500);
+        } else {
+          throw new Error(result.error || "Mock promotion failed");
+        }
       } else {
-        throw new Error(result.error || "Mock promotion failed");
+        const res = await fetch("/api/subscribe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.uid,
+            plan,
+            consentAcknowledged: true,
+          }),
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || "Failed to create checkout transaction.");
+        }
+
+        // Redirect to Yoco Checkout page
+        window.location.href = result.redirectUrl;
       }
-    } catch (err: any) {
-      setStatusMessage({ type: "error", text: err.message || "Bypass failed" });
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : "An error occurred.";
+      setStatusMessage({ type: "error", text: message });
       setIsRedirecting(false);
     }
   };
@@ -124,6 +138,10 @@ function SubscribeContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 text-xs text-primary flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  <span>Share Block / Leasehold Terms explicit consent verified on audit record.</span>
+                </div>
                 <Link
                   href="/admin/properties"
                   className="block"
@@ -144,7 +162,7 @@ function SubscribeContent() {
             {/* Plan Cards Grid */}
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 max-w-4xl mx-auto items-stretch">
               {/* Monthly Plan */}
-              <Card>
+              <Card className="flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
@@ -152,13 +170,13 @@ function SubscribeContent() {
                       <CardTitle>Pro Monthly</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Flexible month-to-month access to all Pro features.</CardDescription>
+                  <CardDescription>Flexible month-to-month access to all Pro features with 25-yr capital accrual.</CardDescription>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">R 15</span>
                     <span className="text-sm text-muted-foreground">/ month</span>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1">
                   <Separator className="mb-6" />
                   <ul className="space-y-3">
                     {["Access & create exclusive Pro-only packages", "Airbnb / Google Calendar sync", "Unlimited property listings & custom deals"].map((feature) => (
@@ -169,15 +187,23 @@ function SubscribeContent() {
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex flex-col items-start gap-3">
                   {user ? (
-                    <Button
-                      onClick={() => handleSubscribe("monthly")}
-                      disabled={isRedirecting}
-                      className="w-full"
-                    >
-                      {isRedirecting ? "Connecting..." : "Subscribe Monthly"}
-                    </Button>
+                    <>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Scale className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>Subject to Share Block &amp; Capital Terms</span>
+                      </div>
+                      <Button
+                        onClick={() => initiateSubscribe("monthly")}
+                        disabled={isRedirecting}
+                        className="w-full cursor-pointer"
+                      >
+                        {isRedirecting && checkoutModalPlan === "monthly"
+                          ? "Connecting..."
+                          : "Review Terms & Subscribe"}
+                      </Button>
+                    </>
                   ) : (
                     <Link href="/login" className="w-full">
                       <Button variant="outline" className="w-full">Sign In to Subscribe</Button>
@@ -187,7 +213,7 @@ function SubscribeContent() {
               </Card>
 
               {/* Annual Plan (Recommended) */}
-              <Card className="relative border-primary/50 md:ring-1 md:ring-primary/20">
+              <Card className="flex flex-col relative border-primary/50 md:ring-1 md:ring-primary/20">
                 <div className="absolute top-3 right-4">
                   <Badge>Save R30</Badge>
                 </div>
@@ -198,14 +224,14 @@ function SubscribeContent() {
                       <CardTitle>Pro Annual</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Best value plan for serious hosts with year-round capabilities.</CardDescription>
+                  <CardDescription>Best value plan for serious hosts with year-round capabilities and capital allocation.</CardDescription>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">R 150</span>
                     <span className="text-sm text-muted-foreground">/ year</span>
                     <span className="ml-2 text-xs text-primary font-medium">(R 12.50/mo)</span>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1">
                   <Separator className="mb-6" />
                   <ul className="space-y-3">
                     {["Access & create exclusive Pro-only packages", "Airbnb / Google Calendar sync", "Unlimited property listings & custom deals", "Priority features & promotional packages"].map((feature) => (
@@ -216,15 +242,23 @@ function SubscribeContent() {
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex flex-col items-start gap-3">
                   {user ? (
-                    <Button
-                      onClick={() => handleSubscribe("annual")}
-                      disabled={isRedirecting}
-                      className="w-full"
-                    >
-                      {isRedirecting ? "Connecting..." : "Subscribe Annually"}
-                    </Button>
+                    <>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Scale className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>Subject to Share Block &amp; Capital Terms</span>
+                      </div>
+                      <Button
+                        onClick={() => initiateSubscribe("annual")}
+                        disabled={isRedirecting}
+                        className="w-full cursor-pointer"
+                      >
+                        {isRedirecting && checkoutModalPlan === "annual"
+                          ? "Connecting..."
+                          : "Review Terms & Subscribe"}
+                      </Button>
+                    </>
                   ) : (
                     <Link href="/login" className="w-full">
                       <Button variant="outline" className="w-full">Sign In to Subscribe</Button>
@@ -240,21 +274,21 @@ function SubscribeContent() {
                 <CardHeader className="text-center">
                   <CardTitle className="text-base">🛠 Local Dev Control</CardTitle>
                   <CardDescription>
-                    For testing, bypass the checkout gateway and upgrade instantly.
+                    Test the checkout modal, review statutory terms, and log an audit record with instant promotion.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 sm:flex-row justify-center">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleMockBypass("monthly")}
+                    onClick={() => initiateSubscribe("monthly", true)}
                     disabled={isRedirecting}
                   >
                     Bypass as Pro Monthly
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleMockBypass("annual")}
+                    onClick={() => initiateSubscribe("annual", true)}
                     disabled={isRedirecting}
                   >
                     Bypass as Pro Annual
@@ -264,6 +298,17 @@ function SubscribeContent() {
             )}
           </div>
         )}
+
+        {/* Dedicated Checkout / Terms Review Modal */}
+        <ProTermsCheckoutModal
+          key={checkoutModalPlan || "none"}
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          plan={checkoutModalPlan}
+          isProcessing={isRedirecting}
+          isMockBypass={isMockBypassMode}
+          onConfirm={handleConfirmSubscription}
+        />
       </div>
     </div>
   );

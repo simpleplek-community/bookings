@@ -111,10 +111,10 @@ export default function ProfilePage() {
       setProfileData((prev) =>
         prev
           ? {
-              ...prev,
-              displayName: json.data.displayName,
-              bio: json.data.bio,
-            }
+            ...prev,
+            displayName: json.data.displayName,
+            bio: json.data.bio,
+          }
           : null
       );
 
@@ -214,10 +214,10 @@ export default function ProfilePage() {
   // Formatted date string
   const formattedExpiryDate = expiresAtDate
     ? new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }).format(expiresAtDate)
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(expiresAtDate)
     : "No active expiration date";
 
   const billingIntervalLabel =
@@ -227,22 +227,22 @@ export default function ProfilePage() {
     displayName.trim() !== (profileData?.displayName || user.displayName || "").trim() ||
     bio.trim() !== (profileData?.bio || "").trim();
 
-const proFeatures = [
-  "Unlimited property listings and deals",
-  "Live 2-way Airbnb & Google Calendar sync",
-  "Exclusive member pricing & package builder",
-  "Custom branded host address (subdomain)",
-];
+  const proFeatures = [
+    "Unlimited property listings and deals",
+    "Live 2-way Airbnb & Google Calendar sync",
+    "Exclusive member pricing & package builder",
+    "Custom branded host address (subdomain)",
+  ];
 
   return (
-    <div className="w-full min-h-screen bg-background text-foreground text-base leading-6">
+    <div className="w-full min-h-screen bg-[#f7fafa] text-[#0b2a27] text-base leading-6 font-[Geist,'Geist_Fallback',ui-sans-serif,system-ui,sans-serif]">
       <div className="mx-auto max-w-3xl px-4 py-10 space-y-8">
         {/* Navigation & Header */}
         <header className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1.5 text-sm text-[#5b716f] transition-colors hover:text-[#0b2a27]"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Home
@@ -250,18 +250,18 @@ const proFeatures = [
             {profileData?.isAdmin && (
               <Link
                 href="/admin/properties"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#00B09C] hover:underline"
               >
                 Host Dashboard →
               </Link>
             )}
           </div>
 
-          <div className="flex flex-col gap-1 border-b border-border pb-5">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <div className="flex flex-col gap-1 border-b border-[#e6eeed] pb-5">
+            <h1 className="text-3xl font-bold tracking-tight text-[#0b2a27] sm:text-4xl">
               Account & Profile
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[#5b716f]">
               Review your active subscription status, expiration timeline, and update your public host profile.
             </p>
           </div>
@@ -275,34 +275,34 @@ const proFeatures = [
 
         <section
           aria-labelledby="subscription-heading"
-          className="relative overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+          className="relative overflow-hidden rounded-xl border border-[#dbe5e4] bg-white shadow-sm"
         >
-          <div className="h-1 w-full bg-primary" />
-          <div className="p-6 border-b border-border">
+          <div className="h-1 w-full bg-[#00B09C]" />
+          <div className="p-6 border-b border-[#e6eeed]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-sm font-medium text-muted-foreground">Membership</span>
-                <div id="subscription-heading" className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+                <span className="text-sm font-medium text-[#5b716f]">Membership</span>
+                <div id="subscription-heading" className="mt-1 text-2xl font-semibold tracking-tight text-[#0b2a27]">
                   {isPro ? "Pro Subscription" : "Standard Plan"}
                 </div>
               </div>
               {isPro && !isExpired ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e6f4f1] px-2.5 py-1 text-xs font-medium text-[#00B09C]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#00B09C]" />
                   Active
                 </span>
               ) : isExpired ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
-                  <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-600" />
                   Expired
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
                   Free Tier
                 </span>
               )}
             </div>
-            <div className="mt-2 text-sm text-muted-foreground">
+            <div className="mt-2 text-sm text-[#5b716f]">
               {isPro
                 ? "You have full Pro privileges including live calendar sync and exclusive packages."
                 : "Upgrade to unlock listing capabilities and calendar integration."}
@@ -310,27 +310,27 @@ const proFeatures = [
           </div>
 
           <div className="grid gap-6 p-6 md:grid-cols-2">
-            <div className="rounded-lg bg-muted/60 p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="rounded-lg bg-[#f3f7f7] p-4">
+              <div className="flex items-center gap-2 text-[#5b716f]">
                 <Calendar className="h-4 w-4" aria-hidden="true" />
                 <span className="text-xs font-semibold tracking-wide">SUBSCRIPTION EXPIRATION</span>
               </div>
               <div className="mt-2 text-sm font-medium">
                 {isPro && expiresAtDate ? (
                   <div className="space-y-1">
-                    <div className="text-base font-bold text-foreground">
+                    <div className="text-base font-bold text-[#0b2a27]">
                       {formattedExpiryDate}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-xs text-[#5b716f]">
                       <Clock className="h-3.5 w-3.5" />
                       {!isExpired ? (
-                        <span className="font-medium text-primary">
+                        <span className="font-medium text-[#00B09C]">
                           {daysRemaining !== null
                             ? `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
                             : "Active cycle"}
                         </span>
                       ) : (
-                        <span className="font-medium text-destructive">
+                        <span className="font-medium text-red-600">
                           Expired on {formattedExpiryDate}
                         </span>
                       )}
@@ -346,24 +346,24 @@ const proFeatures = [
               </div>
             </div>
             <div>
-              <span className="text-sm font-medium text-foreground">Included with Pro:</span>
+              <span className="text-sm font-medium text-[#0b2a27]">Included with Pro:</span>
               <ul className="mt-2 space-y-2">
                 {proFeatures.map((feature) => (
                   <li key={feature} className="flex items-start gap-2 text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <span className="text-muted-foreground">{feature}</span>
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#0f766e]" aria-hidden="true" />
+                    <span className="text-[#33504d]">{feature}</span>
                   </li>
                 ))}
               </ul>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border bg-muted/30 p-6 sm:flex-row">
+          <div className="flex flex-col gap-3 border-t border-[#e6eeed] bg-[#fafcfc] p-6 sm:flex-row">
             <Link href="/subscribe" className="flex-1">
               <button
                 type="button"
                 id="manage-subscription-btn"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[#0f766e] px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#115e59] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2 cursor-pointer"
               >
                 <Zap className="h-4 w-4" aria-hidden="true" />
                 {isPro && !isExpired ? "Manage / Renew Subscription" : "Subscribe to Pro"}
@@ -373,9 +373,9 @@ const proFeatures = [
               <Link href="/settings/profile" className="flex-1">
                 <button
                   type="button"
-                  className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-[#dbe5e4] bg-white px-4 text-sm font-medium text-[#0b2a27] transition-colors duration-150 hover:bg-[#f3f7f7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2 cursor-pointer"
                 >
-                  <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <Globe className="h-4 w-4 text-[#5b716f]" aria-hidden="true" />
                   Public Address Settings
                 </button>
               </Link>
@@ -386,19 +386,19 @@ const proFeatures = [
         <section aria-labelledby="profile-heading">
           <form
             onSubmit={handleSaveProfile}
-            className="rounded-xl border border-border bg-card shadow-sm"
+            className="rounded-xl border border-[#dbe5e4] bg-white shadow-sm"
           >
-            <div className="border-b border-border p-6">
+            <div className="border-b border-[#e6eeed] p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div id="profile-heading" className="text-lg font-semibold tracking-tight text-foreground">
+                  <div id="profile-heading" className="text-lg font-semibold tracking-tight text-[#0b2a27]">
                     Profile Details
                   </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
+                  <div className="mt-1 text-sm text-[#5b716f]">
                     Shown at the top of your public listings and in the site footer.
                   </div>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0f766e] text-lg font-semibold text-white">
                   {displayName.trim().charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || "J"}
                 </div>
               </div>
@@ -406,7 +406,7 @@ const proFeatures = [
 
             <div className="space-y-6 p-6">
               <div className="space-y-2">
-                <label htmlFor="displayName" className="text-sm font-medium text-foreground">
+                <label htmlFor="displayName" className="text-sm font-medium text-[#0b2a27]">
                   Host or business name
                 </label>
                 <input
@@ -420,14 +420,14 @@ const proFeatures = [
                     setDisplayName(e.target.value);
                     if (nameError) setNameError(null);
                   }}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-9 w-full rounded-md border border-[#dbe5e4] bg-white px-3 text-sm text-[#0b2a27] shadow-sm placeholder:text-[#8aa09e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e]"
                 />
                 {nameError ? (
-                  <p id="displayName-error" className="text-xs text-destructive font-medium">
+                  <p id="displayName-error" className="text-xs text-red-600 font-medium">
                     {nameError}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#5b716f]">
                     This name is displayed in the site footer and throughout your guest storefront.
                   </p>
                 )}
@@ -435,10 +435,10 @@ const proFeatures = [
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label htmlFor="bio" className="text-sm font-medium text-foreground">
+                  <label htmlFor="bio" className="text-sm font-medium text-[#0b2a27]">
                     Short intro
                   </label>
-                  <span className="text-xs tabular-nums text-muted-foreground">{bio.length}/{BIO_MAX}</span>
+                  <span className="text-xs tabular-nums text-[#5b716f]">{bio.length}/{BIO_MAX}</span>
                 </div>
                 <textarea
                   id="bio"
@@ -447,26 +447,26 @@ const proFeatures = [
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Small, characterful places a short walk from the beach..."
-                  className="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex w-full resize-none rounded-md border border-[#dbe5e4] bg-white px-3 py-2 text-sm text-[#0b2a27] shadow-sm placeholder:text-[#8aa09e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e]"
                 />
               </div>
 
-              <div role="separator" aria-orientation="horizontal" className="h-px w-full bg-border" />
+              <div role="separator" aria-orientation="horizontal" className="h-px w-full bg-[#e6eeed]" />
 
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <label className="flex items-center gap-2 text-sm font-medium text-[#0b2a27]">
+                    <Mail className="h-4 w-4 text-[#5b716f]" aria-hidden="true" />
                     Email Address
                   </label>
-                  <div className="flex h-9 items-center justify-between gap-2 rounded-md bg-muted/60 px-3 text-sm">
-                    <span className="truncate text-foreground">{user.email || "No email associated"}</span>
-                    <ShieldCheck className="h-4 w-4 shrink-0 text-primary" aria-label="Verified" />
+                  <div className="flex h-9 items-center justify-between gap-2 rounded-md bg-[#f3f7f7] px-3 text-sm">
+                    <span className="truncate text-[#33504d]">{user.email || "No email associated"}</span>
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-[#0f766e]" aria-label="Verified" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <label className="flex items-center gap-2 text-sm font-medium text-[#0b2a27]">
+                    <Globe className="h-4 w-4 text-[#5b716f]" aria-hidden="true" />
                     Host Web Address
                   </label>
                   {profileData?.subdomain ? (
@@ -474,7 +474,7 @@ const proFeatures = [
                       href={publicUrl(profileData.subdomain)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-border px-3 text-sm text-primary transition-colors duration-150 hover:bg-muted"
+                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-[#dbe5e4] px-3 text-sm text-[#0f766e] transition-colors duration-150 hover:bg-[#f3f7f7]"
                     >
                       <span className="truncate font-medium">{profileData.subdomain}.simpleplek.com</span>
                       <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -482,7 +482,7 @@ const proFeatures = [
                   ) : (
                     <Link
                       href="/settings/profile"
-                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                      className="flex h-9 items-center justify-between gap-2 rounded-md border border-dashed border-[#dbe5e4] px-3 text-sm text-[#5b716f] transition-colors duration-150 hover:bg-[#f3f7f7] hover:text-[#0b2a27]"
                     >
                       <span>Claim host address →</span>
                     </Link>
@@ -491,10 +491,10 @@ const proFeatures = [
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-4">
+            <div className="flex items-center justify-between border-t border-[#e6eeed] bg-[#fafcfc] px-6 py-4">
               <div>
                 {saveSuccess && (
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-[#0f766e]">
                     <Check className="h-4 w-4" />
                     Saved & synchronized
                   </span>
@@ -509,7 +509,7 @@ const proFeatures = [
                       setBio(profileData?.bio || "");
                       setNameError(null);
                     }}
-                    className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 cursor-pointer"
+                    className="text-xs font-semibold text-[#5b716f] hover:text-[#0b2a27] transition-colors px-2 py-1.5 cursor-pointer"
                   >
                     Discard
                   </button>
@@ -518,7 +518,7 @@ const proFeatures = [
                   type="submit"
                   id="save-profile-btn"
                   disabled={!isFormDirty || isSaving || !displayName.trim()}
-                  className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+                  className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[#0f766e] px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#115e59] disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isSaving ? "Saving…" : "Save changes"}
