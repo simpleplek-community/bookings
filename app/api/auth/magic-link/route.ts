@@ -5,15 +5,17 @@ import { sendMagicLinkEmail } from "@/lib/email";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { email, origin } = body;
+    const { email } = body;
 
-    if (!email) {
-      return NextResponse.json({ success: false, error: "email parameter is required." }, { status: 400 });
+    if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ success: false, error: "A valid email is required." }, { status: 400 });
     }
 
-    if (!origin) {
-      return NextResponse.json({ success: false, error: "origin parameter is required." }, { status: 400 });
-    }
+    // Build the link from the host this request was served on, never from a client-supplied
+    // origin, so a sign-in token can't be mailed out pointing at an attacker's site.
+    const host = request.headers.get("host") || "";
+    const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+    const origin = host ? `${proto}://${host}` : request.nextUrl.origin;
 
     // Get or create user
     const uid = await getOrCreateUserByEmail(email);

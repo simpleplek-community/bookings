@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBooking } from "@/lib/firebase";
+import { getBooking, getProperty } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { getSessionUser, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
+
+async function canAccessBooking(request: NextRequest, booking: any): Promise<Response | null> {
+  const session = await getSessionUser(request);
+  if (!session) return unauthorized();
+  if (session.isSuperAdmin || isPartyTo(session, booking)) return null;
+  if (ownsProperty(session, await getProperty(booking.propertyId))) return null;
+  return forbidden("You do not have access to this booking.");
+}
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +21,8 @@ export async function GET(
     if (!booking) {
       return NextResponse.json({ success: false, error: "Booking not found." }, { status: 404 });
     }
+    const denied = await canAccessBooking(request, booking);
+    if (denied) return denied;
     return NextResponse.json({ success: true, data: booking });
   } catch (err: unknown) {
     const error = err as Error;
@@ -30,6 +41,8 @@ export async function POST(
     if (!booking) {
       return NextResponse.json({ success: false, error: "Booking not found." }, { status: 404 });
     }
+    const denied = await canAccessBooking(request, booking);
+    if (denied) return denied;
 
     const sent = await sendBookingConfirmationEmail(booking);
     if (sent) {

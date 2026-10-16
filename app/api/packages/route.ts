@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPackage, listPackages, isUserAdmin, getProperty, getUserProfile } from "@/lib/firebase";
+import { createPackage, listPackages, getPackage, isUserAdmin, getProperty, getUserProfile } from "@/lib/firebase";
+import { getSessionUser, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,10 +17,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check admin permissions
-    const userId = request.headers.get("x-user-id");
-    const email = request.headers.get("x-user-email");
-    if (!userId || !(await isUserAdmin(userId, email))) {
-      return NextResponse.json({ success: false, data: "Unauthorized access: admin privileges required." }, { status: 403 });
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
+    if (!(await isUserAdmin(userId, session.email, session.emailVerified))) {
+      return forbidden("Unauthorized access: admin privileges required.");
     }
 
     const body = await request.json().catch(() => ({}));
@@ -43,9 +45,19 @@ export async function POST(request: NextRequest) {
     if (!property) {
       return NextResponse.json({ success: false, data: "Property not found." }, { status: 404 });
     }
-    const propertyHostId = property.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId) {
-      return NextResponse.json({ success: false, data: "Unauthorized: You do not own the property for this package." }, { status: 403 });
+    if (!ownsProperty(session, property) && !session.isSuperAdmin) {
+      return forbidden("Unauthorized: You do not own the property for this package.");
+    }
+
+    // Updating an existing package id must not hijack a package belonging to another property
+    if (id) {
+      const existingPkg = await getPackage(id);
+      if (existingPkg && existingPkg.propertyId !== propertyId && !session.isSuperAdmin) {
+        const existingProperty = await getProperty(existingPkg.propertyId);
+        if (!ownsProperty(session, existingProperty)) {
+          return forbidden("Unauthorized: You do not own this package.");
+        }
+      }
     }
 
     // Verify subscription tier package category entitlements

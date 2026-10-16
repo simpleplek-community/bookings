@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const booking = await getBooking(bookingId);
+    if (!booking) {
+      return NextResponse.json({ success: false, error: "Booking not found." }, { status: 404 });
+    }
+    if (Number(amountInCents) !== Math.round(Number(booking.total) * 100)) {
+      return NextResponse.json({ success: false, error: "Charge amount does not match the booking total." }, { status: 400 });
+    }
+
     const secretKey = process.env.YOCO_SEC?.trim();
 
     if (!secretKey) {

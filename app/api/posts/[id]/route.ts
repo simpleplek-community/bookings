@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProperty, createProperty, deleteProperty, isUserAdmin, getUserProfile } from "@/lib/firebase";
+import { getSessionUser, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
@@ -8,8 +9,7 @@ export async function GET(
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const viewerId = searchParams.get("userId") || request.headers.get("x-user-id") || undefined;
-    const viewerEmail = searchParams.get("email") || request.headers.get("x-user-email") || undefined;
+    const session = await getSessionUser(request);
 
     const property = await getProperty(id);
     if (!property) {
@@ -19,26 +19,13 @@ export async function GET(
     if (property.isPro) {
       // Check if viewer is owner, admin, or pro member
       let isProViewer = false;
-      let isOwner = false;
+      const isOwner = ownsProperty(session, property);
 
-      if (viewerId || viewerEmail) {
-        const viewerProfile = viewerId ? await getUserProfile(viewerId) : null;
-        const emailToCheck = viewerEmail || viewerProfile?.email || "";
-        const isViewerAdmin = await isUserAdmin(viewerId || "", emailToCheck);
-
+      if (session) {
+        const viewerProfile = await getUserProfile(session.uid);
+        const isViewerAdmin = await isUserAdmin(session.uid, session.email, session.emailVerified);
         if (viewerProfile?.plan === "pro" || isViewerAdmin) {
           isProViewer = true;
-        }
-
-        if (property.hostId) {
-          const hostIdStr = String(property.hostId).toLowerCase();
-          if (
-            (viewerId && String(viewerId).toLowerCase() === hostIdStr) ||
-            (emailToCheck && emailToCheck.toLowerCase() === hostIdStr) ||
-            (viewerEmail && viewerEmail.toLowerCase() === hostIdStr)
-          ) {
-            isOwner = true;
-          }
         }
       }
 
@@ -65,12 +52,9 @@ export async function PUT(
   try {
     const { id } = await params;
 
-    // Check admin/host permissions
-    const userId = request.headers.get("x-user-id");
-    const email = request.headers.get("x-user-email");
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required." }, { status: 401 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
 
     // Retrieve existing property to verify ownership
     const existing = await getProperty(id);
@@ -78,17 +62,9 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
 
-    const isAdmin = await isUserAdmin(userId, email);
-    // Verify host tenancy ownership (allow if matching hostId, or if admin, or if existing has no hostId, or if it is default host)
-    const propertyHostId = existing.hostId || "mock_admin_example_com";
-    const isOwner = Boolean(
-      (userId && (userId === propertyHostId || userId.toLowerCase() === propertyHostId.toLowerCase())) ||
-      (email && email.toLowerCase() === propertyHostId.toLowerCase()) ||
-      propertyHostId === "mock_admin_example_com"
-    );
-
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
+    // Only the listing's host or a platform operator may edit it
+    if (!ownsProperty(session, existing) && !session.isSuperAdmin) {
+      return forbidden("Unauthorized: You do not own this property listing.");
     }
 
     const body = await request.json().catch(() => ({}));
@@ -98,7 +74,7 @@ export async function PUT(
     if (isPro) {
       const profile = await getUserProfile(userId);
       const userPlan = profile?.plan || "standard";
-      const isAdmin = await isUserAdmin(userId, email);
+      const isAdmin = await isUserAdmin(userId, session.email, session.emailVerified);
       if (userPlan === "standard" && !isAdmin) {
         return NextResponse.json({
           success: false,
@@ -153,12 +129,8 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Check admin/host permissions
-    const userId = request.headers.get("x-user-id");
-    const email = request.headers.get("x-user-email");
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required." }, { status: 401 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
 
     // Retrieve existing property to verify ownership
     const existing = await getProperty(id);
@@ -166,16 +138,9 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
 
-    const isAdmin = await isUserAdmin(userId, email);
-    // Verify host tenancy ownership
-    const propertyHostId = existing.hostId || "mock_admin_example_com";
-    const isOwner = Boolean(
-      (userId && (userId === propertyHostId || userId.toLowerCase() === propertyHostId.toLowerCase())) ||
-      (email && email.toLowerCase() === propertyHostId.toLowerCase()) ||
-      propertyHostId === "mock_admin_example_com"
-    );
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json({ success: false, error: "Unauthorized: You do not own this property listing." }, { status: 403 });
+    // Only the listing's host or a platform operator may delete it
+    if (!ownsProperty(session, existing) && !session.isSuperAdmin) {
+      return forbidden("Unauthorized: You do not own this property listing.");
     }
 
     const success = await deleteProperty(id);

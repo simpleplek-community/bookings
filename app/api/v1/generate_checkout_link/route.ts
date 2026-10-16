@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPackage, getProjectId, listPackageDocIds, getBooking, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 import { parsePriceToCents, createCheckout } from "@/lib/yoco";
+import { getSessionUser } from "@/lib/auth";
 
 const PACKAGE_LABELS: Record<string, string> = {
   shack_stack: "Three nights - The Shack",
@@ -103,8 +104,9 @@ export async function POST(request: NextRequest) {
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
     const siteUrl = host ? `${proto}://${host}` : request.nextUrl.origin;
 
-    const userId = request.headers.get("x-user-id");
-    const userEmail = request.headers.get("x-user-email");
+    const session = await getSessionUser(request);
+    const userId = session?.uid ?? null;
+    const userEmail = session?.emailVerified ? session.email : null;
 
     return processGenerateRequest(type, bookingId, estimateId, amountInCentsOverride, descriptionOverride, siteUrl, userId, userEmail);
   } catch (err: any) {
@@ -127,9 +129,21 @@ async function processGenerateRequest(
   userEmail?: string | null
 ) {
   try {
+    // Charge what we stored for the booking/estimate, never a client-supplied amount.
+    const booking = bookingId ? await getBooking(bookingId) : null;
+    const estimate = !booking && estimateId ? await getEstimate(estimateId) : null;
+    if (bookingId && !booking) {
+      return NextResponse.json({ status: false, data: "Booking not found." }, { status: 404, headers: corsHeaders() });
+    }
+    if (estimateId && !booking && !estimate) {
+      return NextResponse.json({ status: false, data: "Estimate not found." }, { status: 404, headers: corsHeaders() });
+    }
+
     let pkg = await getPackage(type);
+    // A synthetic package is only allowed for checkouts not tied to a booking/estimate,
+    // since those never mark anything as paid.
     if (!pkg) {
-      if (amountInCentsOverride !== undefined) {
+      if (amountInCentsOverride !== undefined && !booking && !estimate) {
         pkg = {
           id: type,
           name: descriptionOverride || "Standard Stay",
@@ -197,7 +211,19 @@ async function processGenerateRequest(
       }
     }
 
-    const amountInCents = amountInCentsOverride !== undefined ? amountInCentsOverride : parsePriceToCents(pkg);
+    // Booking + a different package = add-on purchase, charged at the package's stored price.
+    const isAddon = Boolean(booking && pkg && pkg.id !== booking.packageId);
+    let amountInCents: number;
+    if (estimate) {
+      amountInCents = Math.round(Number(estimate.total) * 100);
+    } else if (booking && !isAddon) {
+      amountInCents = Math.round(Number(booking.total) * 100);
+    } else {
+      amountInCents = parsePriceToCents(pkg);
+    }
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      return NextResponse.json({ status: false, data: "Invalid checkout amount." }, { status: 400, headers: corsHeaders() });
+    }
     const description = descriptionOverride !== undefined ? descriptionOverride : (
       pkg.description || pkg.name || pkg.title || PACKAGE_LABELS[type.trim()] || type
     );
@@ -208,7 +234,8 @@ async function processGenerateRequest(
       metadata: {
         packageType: type,
         bookingId: bookingId || "",
-        estimateId: estimateId || ""
+        estimateId: estimateId || "",
+        ...(isAddon ? { intent: "addon", addonId: pkg.id } : {})
       },
       siteUrl
     });

@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createEstimate, updateEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
+import { createEstimate, updateEstimate, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
+import { getSessionUser, isPartyTo, unauthorized, forbidden } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized("Please sign in to request an estimate.");
+
     const body = await request.json().catch(() => ({}));
+    const customerId = session.uid;
+    const customerEmail = session.email || body.customerEmail;
     const {
       propertyId,
       packageId,
       customerName,
-      customerEmail,
-      customerId,
       fromDate,
       toDate,
       total,
@@ -31,7 +35,7 @@ export async function POST(request: NextRequest) {
     if (property.isPro) {
       const isOwner = Boolean(property.hostId && customerId && property.hostId === customerId);
       const profile = customerId ? await getUserProfile(customerId) : null;
-      const isAdmin = await isUserAdmin(customerId, customerEmail);
+      const isAdmin = await isUserAdmin(session.uid, session.email, session.emailVerified);
       const isPro = profile?.plan === "pro" || isAdmin || isOwner;
       if (!isPro) {
         return NextResponse.json({
@@ -76,6 +80,19 @@ export async function PATCH(request: NextRequest) {
 
     if (!estimateId) {
       return NextResponse.json({ success: false, error: "estimateId is required." }, { status: 400 });
+    }
+
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const existing = await getEstimate(estimateId);
+    if (!existing) {
+      return NextResponse.json({ success: false, error: "Estimate not found." }, { status: 404 });
+    }
+    if (!isPartyTo(session, existing)) {
+      return forbidden("You are not part of this estimate.");
+    }
+    if (existing.paymentStatus === "paid") {
+      return NextResponse.json({ success: false, error: "This estimate has already been paid." }, { status: 409 });
     }
 
     const updated = await updateEstimate(estimateId, {

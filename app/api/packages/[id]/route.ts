@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPackage, getProperty, deletePackage, isUserAdmin } from "@/lib/firebase";
+import { getPackage, getProperty, deletePackage } from "@/lib/firebase";
+import { getSessionUser, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
@@ -26,11 +27,8 @@ export async function DELETE(
     const { id } = await params;
 
     // Check admin permissions
-    const userId = request.headers.get("x-user-id");
-    const email = request.headers.get("x-user-email");
-    if (!userId || !(await isUserAdmin(userId, email))) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: admin privileges required." }, { status: 403 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
 
     // Verify package ownership via property
     const pkg = await getPackage(id);
@@ -43,9 +41,8 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Associated property not found." }, { status: 404 });
     }
 
-    const propertyHostId = property.hostId || "mock_admin_example_com";
-    if (propertyHostId !== userId) {
-      return NextResponse.json({ success: false, error: "Unauthorized: You do not own the property associated with this package." }, { status: 403 });
+    if (!ownsProperty(session, property) && !session.isSuperAdmin) {
+      return forbidden("Unauthorized: You do not own the property associated with this package.");
     }
 
     const success = await deletePackage(id);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBooking, listBookings, getProperty, updateBookingStatus, getPackage, getUserProfile, isUserAdmin, getBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { getSessionUser, isPaymentsLive, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
 
 // In-memory cache for external feeds keyed by URL to support multiple properties
 interface CacheEntry {
@@ -147,16 +148,47 @@ async function getExternalEvents(propertyId?: string): Promise<any[]> {
   return [...processedGcal, ...processedAirbnb];
 }
 
+/** Availability-only view of a booking for viewers who are not party to it. */
+function redactBooking(b: any) {
+  return {
+    id: b.id,
+    propertyId: b.propertyId,
+    packageId: b.packageId ?? null,
+    estimateId: b.estimateId,
+    fromDate: b.fromDate,
+    toDate: b.toDate,
+    paymentStatus: b.paymentStatus,
+    source: b.source,
+    customerName: "another guest",
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get("propertyId") || undefined;
     const bookings = await listBookings(propertyId);
-    
-    // Add external events matching this property
-    const externalEvents = await getExternalEvents(propertyId);
+    const session = await getSessionUser(request);
 
-    return NextResponse.json({ success: true, data: [...bookings, ...externalEvents] });
+    const ownedPropertyIds = new Set<string>();
+    if (session && !session.isSuperAdmin) {
+      const propertyIds = Array.from(new Set(bookings.map((b: any) => b.propertyId)));
+      for (const id of propertyIds) {
+        if (ownsProperty(session, await getProperty(id))) ownedPropertyIds.add(id);
+      }
+    }
+
+    const visible = bookings.map((b: any) => {
+      const { token, ...rest } = b;
+      if (session?.isSuperAdmin || ownedPropertyIds.has(b.propertyId)) return rest;
+      if (isPartyTo(session, b)) return { ...rest, token };
+      return redactBooking(b);
+    });
+
+    // Add external events matching this property
+    const externalEvents = (await getExternalEvents(propertyId)).map(redactBooking);
+
+    return NextResponse.json({ success: true, data: [...visible, ...externalEvents] });
   } catch (err: any) {
     console.error("GET /api/bookings error:", err);
     return NextResponse.json({ success: false, data: err.message }, { status: 500 });
@@ -215,10 +247,10 @@ export async function POST(request: NextRequest) {
     if (packageId) {
       const selectedPkg = await getPackage(packageId);
       if (selectedPkg && (selectedPkg.isPro || selectedPkg.category === "pro")) {
-        const userId = request.headers.get("x-user-id");
-        const userEmail = request.headers.get("x-user-email") || customerEmail;
+        const session = await getSessionUser(request);
+        const userId = session?.uid;
         const profile = userId ? await getUserProfile(userId) : null;
-        const isAdmin = await isUserAdmin(userId || "", userEmail || "");
+        const isAdmin = session ? await isUserAdmin(session.uid, session.email, session.emailVerified) : false;
         const isProCustomer = profile?.plan === "pro" || Boolean(isAdmin);
 
         if (!isProCustomer) {
@@ -231,11 +263,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Persist the Booking
+    const session = await getSessionUser(request);
     const booking = await createBooking({
       propertyId,
       packageId: packageId || null,
       customerName,
       customerEmail,
+      ...(session ? { customerId: session.uid } : {}),
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
       total: Number(total),
@@ -259,6 +293,21 @@ export async function PATCH(request: NextRequest) {
         { success: false, error: "bookingId and paymentStatus are required." },
         { status: 400 }
       );
+    }
+
+    // With live payments, only the property owner or an operator may change payment state;
+    // customers' "paid" status comes from the signed Yoco webhook.
+    if (isPaymentsLive()) {
+      const session = await getSessionUser(request);
+      if (!session) return unauthorized();
+      const existing = await getBooking(bookingId);
+      if (!existing) {
+        return NextResponse.json({ success: false, error: `Booking with ID ${bookingId} not found.` }, { status: 404 });
+      }
+      const property = await getProperty(existing.propertyId);
+      if (!session.isSuperAdmin && !ownsProperty(session, property)) {
+        return forbidden("Only the host can change a booking's payment status.");
+      }
     }
 
     const updated = await updateBookingStatus(bookingId, paymentStatus);

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveUserDates, getUserDates } from "@/lib/firebase";
+import { getSessionUser, unauthorized } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "userId is required" }, { status: 400 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
 
     const dates = await getUserDates(userId);
     return NextResponse.json({ success: true, data: dates });
@@ -20,11 +18,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
     const body = await request.json().catch(() => ({}));
-    const { userId, fromDate, toDate } = body;
+    const { fromDate, toDate } = body;
 
-    if (!userId || !fromDate || !toDate) {
-      return NextResponse.json({ success: false, error: "Missing required fields (userId, fromDate, toDate)" }, { status: 400 });
+    if (!fromDate || !toDate) {
+      return NextResponse.json({ success: false, error: "Missing required fields (fromDate, toDate)" }, { status: 400 });
     }
 
     const start = new Date(fromDate);

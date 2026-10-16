@@ -30,7 +30,7 @@ export async function createCheckout({ amountInCents, description, metadata, sit
   const secretKey = process.env.YOCO_SEC?.trim();
   const siteUrl = (passedSiteUrl || process.env.SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 
-  console.log(`[Yoco Checkout] Initializing checkout: amount=${amountInCents}, description="${description}", keyPrefix=${secretKey ? secretKey.substring(0, 12) + "..." : "undefined"}`);
+  console.log(`[Yoco Checkout] Initializing checkout: amount=${amountInCents}, description="${description}", keyPrefix=${secretKey ? secretKey.substring(0, 8) + "..." : "undefined"}`);
 
   if (!secretKey) {
     throw new Error(
