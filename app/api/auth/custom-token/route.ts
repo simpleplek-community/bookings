@@ -25,9 +25,7 @@ export async function POST(request: NextRequest) {
     console.error("POST /api/auth/custom-token error:", err);
     return NextResponse.json({
       success: false,
-      error: err.message,
-      stack: err.stack,
-      data: err.stack
+      error: "Could not exchange identity token."
     }, { status: 500 });
   }
 }

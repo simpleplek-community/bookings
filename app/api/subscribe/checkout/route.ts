@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCheckout } from "@/lib/yoco";
+import { getSessionUser, unauthorized } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { userId, plan, amountInCents } = body;
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized("Please sign in to subscribe.");
+    const userId = session.uid;
 
-    if (!userId || !plan) {
-      return NextResponse.json({ success: false, error: "Missing required parameters (userId, plan)" }, { status: 400 });
+    const body = await request.json().catch(() => ({}));
+    const { plan } = body;
+
+    if (!plan) {
+      return NextResponse.json({ success: false, error: "Missing required parameter (plan)" }, { status: 400 });
     }
 
     const isAnnual = plan === "annual";
-    const resolvedAmountInCents = amountInCents ? Number(amountInCents) : isAnnual ? 15000 : 1500;
+    const resolvedAmountInCents = isAnnual ? 15000 : 1500;
 
     const host = request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");

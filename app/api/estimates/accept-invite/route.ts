@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionUser, unauthorized } from "@/lib/auth";
 import { getEstimateByToken, addGuestToEstimate, listBookings, addGuestToBooking } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { token, userId, email, name } = body;
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
+    const email = session.email || "";
+    const { token, name } = body;
 
-    if (!token || !userId) {
-      return NextResponse.json({ success: false, error: "Missing required fields (token, userId)" }, { status: 400 });
+    if (!token) {
+      return NextResponse.json({ success: false, error: "Missing required field (token)" }, { status: 400 });
     }
 
     const estimate = await getEstimateByToken(token);

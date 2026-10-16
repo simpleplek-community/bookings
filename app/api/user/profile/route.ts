@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserProfile, isUserAdmin, updateUserProfile, getHostIdBySubdomain } from "@/lib/firebase";
+import { getSessionUser, unauthorized } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const email = searchParams.get("email");
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "userId query parameter is required." }, { status: 400 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
+    const email = session.email;
 
     const profile = await getUserProfile(userId);
-    const isAdmin = await isUserAdmin(userId, email);
+    const isAdmin = await isUserAdmin(userId, email, session.emailVerified);
     const plan = profile?.plan || (isAdmin ? "pro" : "free");
 
     let subscriptionExpiresAt = profile?.subscriptionExpiresAt || null;
@@ -57,12 +55,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
     const body = await request.json().catch(() => ({}));
-    const { userId, subdomain, displayName, bio, renewInterval } = body;
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "userId is required." }, { status: 400 });
-    }
+    const { subdomain, displayName, bio } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -72,20 +69,6 @@ export async function POST(request: NextRequest) {
 
     if (bio !== undefined) {
       updateData.bio = typeof bio === "string" ? bio.trim() : "";
-    }
-
-    if (renewInterval) {
-      const expiry = new Date();
-      if (renewInterval === "monthly") {
-        expiry.setDate(expiry.getDate() + 30);
-      } else {
-        expiry.setFullYear(expiry.getFullYear() + 1);
-      }
-      updateData.plan = "pro";
-      updateData.billingInterval = renewInterval;
-      updateData.subscriptionExpiresAt = expiry.toISOString();
-      updateData.subscriptionStatus = "active";
-      updateData.isAdmin = true;
     }
 
     if (subdomain !== undefined) {

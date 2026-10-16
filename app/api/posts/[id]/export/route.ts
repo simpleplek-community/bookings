@@ -39,7 +39,7 @@ export async function GET(
       icsLines.push(`DTSTAMP:${formatIcsDate(new Date())}`);
       icsLines.push(`DTSTART:${formatIcsDate(start)}`);
       icsLines.push(`DTEND:${formatIcsDate(end)}`);
-      icsLines.push(`SUMMARY:Booking - ${booking.customerName || "Guest"}`);
+      icsLines.push("SUMMARY:Booked");
       icsLines.push(`DESCRIPTION:Booking Reference: ${booking.id}\\nProperty: ${property.title || "Stay"}`);
       icsLines.push(`LOCATION:${property.location || property.title || "South Africa"}`);
       icsLines.push("STATUS:CONFIRMED");

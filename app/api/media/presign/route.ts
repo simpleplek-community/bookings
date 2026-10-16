@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getSessionUser, unauthorized } from "@/lib/auth";
 
 // Helper to determine if R2 is configured
 const isR2Configured = () => {
@@ -31,14 +32,21 @@ function getR2Client() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { hostId, filename, contentType, propertyId } = body;
+    const session = await getSessionUser(req);
+    if (!session) return unauthorized();
+    const hostId = session.uid;
 
-    if (!hostId || !filename) {
-      return NextResponse.json({ error: "Missing required parameters (hostId, filename)" }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const { filename, contentType, propertyId } = body;
+
+    if (!filename) {
+      return NextResponse.json({ error: "Missing required parameter (filename)" }, { status: 400 });
+    }
+    if (contentType && !/^image\/[a-z0-9.+-]+$/i.test(contentType)) {
+      return NextResponse.json({ error: "Only image uploads are allowed." }, { status: 400 });
     }
 
-    const activePropertyId = propertyId || "draft";
+    const activePropertyId = String(propertyId || "draft").replace(/[^a-zA-Z0-9_-]/g, "_");
     const cleanFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
     const fileKey = `hosts/${hostId}/properties/${activePropertyId}/${Date.now()}_${cleanFilename}`;
 

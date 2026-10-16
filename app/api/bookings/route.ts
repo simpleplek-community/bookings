@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBooking, listBookings, getProperty, updateBookingStatus, getPackage, getUserProfile, isUserAdmin, getBooking } from "@/lib/firebase";
+import { createBooking, listBookings, getProperty, updateBookingStatus, getBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { getSessionUser, isPaymentsLive, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
+import { quoteStayForRequest } from "@/lib/stay-quote";
 
 // In-memory cache for external feeds keyed by URL to support multiple properties
 interface CacheEntry {
@@ -82,25 +84,17 @@ function parseICS(icsText: string, source: string): any[] {
 }
 
 async function getExternalEvents(propertyId?: string): Promise<any[]> {
-  // Default fallbacks from the prompt
-  let gcalUrl = "https://calendar.google.com/calendar/ical/thankyou.digital%40gmail.com/public/basic.ics";
-  let airbnbUrl = "https://www.airbnb.co.za/calendar/ical/1667386340564933279.ics?t=7c5748bff23743a9b22d1c04b63ed656";
-
-  // If we have a propertyId, load its custom URLs from the database
-  if (propertyId) {
-    try {
-      const prop = await getProperty(propertyId);
-      if (prop) {
-        if (prop.googleCalendarUrl !== undefined && prop.googleCalendarUrl !== null) {
-          gcalUrl = prop.googleCalendarUrl;
-        }
-        if (prop.airbnbCalendarUrl !== undefined && prop.airbnbCalendarUrl !== null) {
-          airbnbUrl = prop.airbnbCalendarUrl;
-        }
-      }
-    } catch (err) {
-      console.error(`Error looking up property urls for propertyId ${propertyId}:`, err);
-    }
+  // Feeds come only from the property's own settings. There is no default feed:
+  // a hardcoded one leaked a private Airbnb export URL and blocked other properties' dates.
+  if (!propertyId) return [];
+  let gcalUrl = "";
+  let airbnbUrl = "";
+  try {
+    const prop = await getProperty(propertyId);
+    gcalUrl = prop?.googleCalendarUrl || "";
+    airbnbUrl = prop?.airbnbCalendarUrl || "";
+  } catch (err) {
+    console.error(`Error looking up property urls for propertyId ${propertyId}:`, err);
   }
 
   const now = Date.now();
@@ -147,16 +141,47 @@ async function getExternalEvents(propertyId?: string): Promise<any[]> {
   return [...processedGcal, ...processedAirbnb];
 }
 
+/** Availability-only view of a booking for viewers who are not party to it. */
+function redactBooking(b: any) {
+  return {
+    id: b.id,
+    propertyId: b.propertyId,
+    packageId: b.packageId ?? null,
+    estimateId: b.estimateId,
+    fromDate: b.fromDate,
+    toDate: b.toDate,
+    paymentStatus: b.paymentStatus,
+    source: b.source,
+    customerName: "another guest",
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get("propertyId") || undefined;
     const bookings = await listBookings(propertyId);
-    
-    // Add external events matching this property
-    const externalEvents = await getExternalEvents(propertyId);
+    const session = await getSessionUser(request);
 
-    return NextResponse.json({ success: true, data: [...bookings, ...externalEvents] });
+    const ownedPropertyIds = new Set<string>();
+    if (session && !session.isSuperAdmin) {
+      const propertyIds = Array.from(new Set(bookings.map((b: any) => b.propertyId)));
+      for (const id of propertyIds) {
+        if (ownsProperty(session, await getProperty(id))) ownedPropertyIds.add(id);
+      }
+    }
+
+    const visible = bookings.map((b: any) => {
+      const { token, ...rest } = b;
+      if (session?.isSuperAdmin || ownedPropertyIds.has(b.propertyId)) return rest;
+      if (isPartyTo(session, b)) return { ...rest, token };
+      return redactBooking(b);
+    });
+
+    // Add external events matching this property
+    const externalEvents = (await getExternalEvents(propertyId)).map(redactBooking);
+
+    return NextResponse.json({ success: true, data: [...visible, ...externalEvents] });
   } catch (err: any) {
     console.error("GET /api/bookings error:", err);
     return NextResponse.json({ success: false, data: err.message }, { status: 500 });
@@ -172,13 +197,12 @@ export async function POST(request: NextRequest) {
       customerName,
       customerEmail,
       fromDate,
-      toDate,
-      total
+      toDate
     } = body;
 
     // Validation
-    if (!propertyId || !customerName || !customerEmail || !fromDate || !toDate || total === undefined) {
-      return NextResponse.json({ success: false, error: "Missing required fields, including total." }, { status: 400 });
+    if (!propertyId || !customerName || !customerEmail || !fromDate || !toDate) {
+      return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
     }
 
     const start = new Date(fromDate);
@@ -211,34 +235,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "The selected dates conflict with an existing booking." }, { status: 400 });
     }
 
-    // 2. Verify Pro package entitlement if packageId is specified
-    if (packageId) {
-      const selectedPkg = await getPackage(packageId);
-      if (selectedPkg && (selectedPkg.isPro || selectedPkg.category === "pro")) {
-        const userId = request.headers.get("x-user-id");
-        const userEmail = request.headers.get("x-user-email") || customerEmail;
-        const profile = userId ? await getUserProfile(userId) : null;
-        const isAdmin = await isUserAdmin(userId || "", userEmail || "");
-        const isProCustomer = profile?.plan === "pro" || Boolean(isAdmin);
-
-        if (!isProCustomer) {
-          return NextResponse.json(
-            { success: false, error: "This package is exclusively available to Pro subscribers. Upgrade to Pro to book this package." },
-            { status: 403 }
-          );
-        }
-      }
+    // 2. Price the stay on the server (also enforces mandatory rules and Pro packages).
+    //    Any client-sent total is ignored.
+    const property = await getProperty(propertyId);
+    if (!property) {
+      return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
+    }
+    const session = await getSessionUser(request);
+    const priced = await quoteStayForRequest(session, property, start, end, packageId);
+    if (!priced.ok) {
+      return NextResponse.json({ success: false, error: priced.error }, { status: priced.status });
     }
 
     // 3. Persist the Booking
     const booking = await createBooking({
       propertyId,
-      packageId: packageId || null,
+      packageId: priced.packageId,
       customerName,
       customerEmail,
+      ...(session ? { customerId: session.uid } : {}),
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
-      total: Number(total),
+      total: priced.quote.total,
       paymentStatus: "pending"
     });
 
@@ -259,6 +277,21 @@ export async function PATCH(request: NextRequest) {
         { success: false, error: "bookingId and paymentStatus are required." },
         { status: 400 }
       );
+    }
+
+    // With live payments, only the property owner or an operator may change payment state;
+    // customers' "paid" status comes from the signed Yoco webhook.
+    if (isPaymentsLive()) {
+      const session = await getSessionUser(request);
+      if (!session) return unauthorized();
+      const existing = await getBooking(bookingId);
+      if (!existing) {
+        return NextResponse.json({ success: false, error: `Booking with ID ${bookingId} not found.` }, { status: 404 });
+      }
+      const property = await getProperty(existing.propertyId);
+      if (!session.isSuperAdmin && !ownsProperty(session, property)) {
+        return forbidden("Only the host can change a booking's payment status.");
+      }
     }
 
     const updated = await updateBookingStatus(bookingId, paymentStatus);

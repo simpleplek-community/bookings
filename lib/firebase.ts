@@ -3,11 +3,31 @@ import { getFirestore as getFirestoreAdmin } from "firebase-admin/firestore";
 import { getAuth as getAuthAdmin } from "firebase-admin/auth";
 import * as fs from "fs";
 import * as path from "path";
+import { randomBytes } from "crypto";
 import { MandatoryRule } from "./types";
 
 let app: any;
 let cachedProjectId: string | null = null;
 let isMockMode = false;
+
+/**
+ * The local JSON mock store is for development only. In production a missing or
+ * broken FIREBASE_SERVICE_ACCOUNT_JSON must fail loudly rather than silently
+ * serving fake data, because mock mode also accepts forgeable mock auth tokens.
+ * Set ALLOW_MOCK_DB=true to opt in explicitly (e.g. a demo deployment).
+ */
+function mockModeAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_MOCK_DB === "true";
+}
+
+function enterMockMode(reason: string): null {
+  if (!mockModeAllowed()) {
+    throw new Error(`Firebase is not configured correctly (${reason}). Refusing to fall back to the mock database in production.`);
+  }
+  console.warn(`⚠️ ${reason}. Operating in MOCK MODE (db-mock.json).`);
+  isMockMode = true;
+  return null;
+}
 
 const MOCK_DB_PATH = process.env.VERCEL
   ? path.join("/tmp", "db-mock.json")
@@ -65,9 +85,7 @@ export function getFirestore(): any {
   if (!app) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!raw) {
-      console.warn("⚠️ FIREBASE_SERVICE_ACCOUNT_JSON is not set. Operating in MOCK MODE (db-mock.json).");
-      isMockMode = true;
-      return null;
+      return enterMockMode("FIREBASE_SERVICE_ACCOUNT_JSON is not set");
     }
 
     const trimmed = raw.trim();
@@ -75,9 +93,7 @@ export function getFirestore(): any {
     try {
       credentials = JSON.parse(trimmed);
     } catch (err: any) {
-      console.error("❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON. Falling back to MOCK MODE.", err.message);
-      isMockMode = true;
-      return null;
+      return enterMockMode(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${err.message}`);
     }
 
     try {
@@ -92,9 +108,7 @@ export function getFirestore(): any {
       }
       cachedProjectId = credentials.project_id || null;
     } catch (err: any) {
-      console.error("❌ Failed to initialize Firebase Admin SDK. Falling back to MOCK MODE.", err.message);
-      isMockMode = true;
-      return null;
+      return enterMockMode(`Failed to initialize Firebase Admin SDK: ${err.message}`);
     }
   }
   return getFirestoreAdmin();
@@ -344,6 +358,10 @@ export async function deleteProperty(id: string): Promise<boolean> {
 // PACKAGES CRUD
 // ==========================================
 
+function randomId(bytes: number): string {
+  return randomBytes(bytes).toString("base64url");
+}
+
 export async function createPackage(data: { id?: string; propertyId: string; name: string; price: number; description: string; category?: string; isPro?: boolean; isEnabled?: boolean }): Promise<any> {
   const db = getFirestore();
   const id = data.id || `pkg_${Math.random().toString(36).substring(2, 11)}`;
@@ -479,10 +497,10 @@ export async function deletePackage(id: string): Promise<boolean> {
 
 export async function createBooking(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; fromDate: string; toDate: string; total: number; paymentStatus?: string; customerId?: string; estimateId?: string; guests?: string[]; guestsDetails?: Record<string, any> }): Promise<any> {
   const db = getFirestore();
-  const id = `bk_${Math.random().toString(36).substring(2, 11)}`;
+  const id = `bk_${randomId(9)}`;
   const bookingRecord = {
     paymentStatus: "pending",
-    token: Math.random().toString(36).substring(2, 15),
+    token: randomId(24),
     guests: data.guests || [],
     guestsDetails: data.guestsDetails || {},
     ...data,
@@ -600,33 +618,40 @@ export async function getUserDates(uid: string): Promise<any | null> {
   return null;
 }
 
-export async function isUserAdmin(uid: string, email?: string | null): Promise<boolean> {
-  // Predefined admin emails
-  const adminEmails = [
-    "thankyou.digital@gmail.com",
-    "admin@llandudnostays.co.za",
-    "jmaclachlan@gmail.com",
-    "admin@example.com"
-  ];
-  
-  if (email && adminEmails.includes(email.toLowerCase())) {
-    return true;
+// Platform operators. Only honoured for verified email addresses, otherwise
+// anyone could register an unverified account with one of these emails.
+/** Platform operators, from ADMIN_EMAILS (comma-separated). They must sign in with a verified email. */
+function superAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isSuperAdmin(email?: string | null, emailVerified = false): boolean {
+  if (!email) return false;
+  const normalized = email.toLowerCase();
+  getFirestore();
+  if (isMockMode) {
+    // Local mock users with "admin" in their email are operators in development
+    return normalized.includes("admin") || superAdminEmails().includes(normalized);
   }
-  if (email && (email.toLowerCase().startsWith("admin@") || email.toLowerCase().startsWith("admin+"))) {
+  return emailVerified && superAdminEmails().includes(normalized);
+}
+
+export async function isUserAdmin(uid: string, email?: string | null, emailVerified = false): Promise<boolean> {
+  if (isSuperAdmin(email, emailVerified)) {
     return true;
   }
 
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
-    // Allow local mock users with emails containing "admin" to be admin automatically
-    if (email && email.toLowerCase().includes("admin")) {
-      return true;
-    }
     const userProfiles = dbData.userProfiles || {};
     return !!userProfiles[uid]?.isAdmin;
   }
 
+  if (!uid) return false;
   try {
     const doc = await db.collection("users").doc(uid).get();
     if (doc.exists) {
@@ -645,8 +670,8 @@ export async function isUserAdmin(uid: string, email?: string | null): Promise<b
 
 export async function createEstimate(data: { propertyId: string; packageId: string | null; customerName: string; customerEmail: string; customerId: string; fromDate: string; toDate: string; total: number; paymentStatus?: string; guests?: string[]; guestsDetails?: Record<string, any> }): Promise<any> {
   const db = getFirestore();
-  const id = `est_${Math.random().toString(36).substring(2, 11)}`;
-  const token = Math.random().toString(36).substring(2, 12);
+  const id = `est_${randomId(9)}`;
+  const token = randomId(24);
   const estimateRecord = {
     paymentStatus: "pending",
     token,
@@ -1129,11 +1154,21 @@ export async function createCustomToken(uid: string): Promise<string> {
 export async function verifyIdToken(idToken: string): Promise<any> {
   getFirestore();
   if (isMockMode) {
-    if (idToken.startsWith("mock_id_token_")) {
-      const uid = idToken.replace("mock_id_token_", "");
-      return { uid, email: `${uid}@example.com` };
+    // Development-only: mock sessions send "mock_id_token_<base64url JSON {uid,email}>".
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error("Mock identity tokens are not accepted in production.");
     }
-    return { uid: idToken, email: `${idToken}@example.com` };
+    if (!idToken.startsWith("mock_id_token_")) {
+      throw new Error("Invalid mock identity token.");
+    }
+    const raw = idToken.slice("mock_id_token_".length);
+    try {
+      const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+      if (parsed?.uid) {
+        return { uid: String(parsed.uid), email: parsed.email || `${parsed.uid}@example.com`, email_verified: true };
+      }
+    } catch {}
+    return { uid: raw, email: `${raw}@example.com`, email_verified: true };
   }
 
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;

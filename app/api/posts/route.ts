@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createProperty, listProperties, isUserAdmin, getUserProfile, getHostIdBySubdomain } from "@/lib/firebase";
+import { createProperty, listProperties, getProperty, isUserAdmin, getUserProfile, getHostIdBySubdomain } from "@/lib/firebase";
+import { getSessionUser, ownsProperty, unauthorized } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const hostId = searchParams.get("hostId") || undefined;
     const subdomain = searchParams.get("subdomain") || undefined;
-    const viewerId = searchParams.get("userId") || req.headers.get("x-user-id") || undefined;
-    const viewerEmail = searchParams.get("email") || req.headers.get("x-user-email") || undefined;
+    const session = await getSessionUser(req);
 
     let resolvedHostId = hostId;
 
@@ -22,25 +22,20 @@ export async function GET(req: NextRequest) {
 
     const list = await listProperties(resolvedHostId || undefined);
 
-    // If host is explicitly queried (like admin dashboard) or viewer is owner/admin/pro, return all
-    const isExplicitHostQuery = Boolean(hostId && !subdomain);
-    const isOwner = Boolean((viewerId && resolvedHostId && viewerId === resolvedHostId) || isExplicitHostQuery);
-    
     // Check if viewer is a Pro member or Admin
     let isProViewer = false;
-    if (viewerId || viewerEmail) {
-      const viewerProfile = viewerId ? await getUserProfile(viewerId) : null;
-      const emailToCheck = viewerEmail || viewerProfile?.email || "";
-      const isViewerAdmin = await isUserAdmin(viewerId || "", emailToCheck);
+    if (session) {
+      const viewerProfile = await getUserProfile(session.uid);
+      const isViewerAdmin = await isUserAdmin(session.uid, session.email, session.emailVerified);
       if (viewerProfile?.plan === "pro" || isViewerAdmin) {
         isProViewer = true;
       }
     }
 
-    // Filter list: If not explicit host query, not pro viewer, exclude isPro properties unless viewer owns the listing
-    const filteredList = isProViewer || isExplicitHostQuery
+    // Exclude isPro properties for non-pro viewers unless the viewer owns the listing
+    const filteredList = isProViewer
       ? list
-      : list.filter((p: any) => !p.isPro || (viewerId && p.hostId === viewerId));
+      : list.filter((p: any) => !p.isPro || ownsProperty(session, p));
 
     return NextResponse.json({ success: true, data: filteredList, properties: filteredList });
   } catch (err: any) {
@@ -51,17 +46,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const userId = request.headers.get("x-user-id");
-    const email = request.headers.get("x-user-email");
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "Unauthorized access: authentication required.", data: "Unauthorized access: authentication required." }, { status: 401 });
-    }
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+    const userId = session.uid;
 
     // Verify property limit for standard subscription (max 3 properties)
     const profile = await getUserProfile(userId);
     const userPlan = profile?.plan || "standard";
-    const isAdmin = await isUserAdmin(userId, email);
+    const isAdmin = await isUserAdmin(userId, session.email, session.emailVerified);
 
     if (userPlan === "standard" && !isAdmin) {
       const existingListings = await listProperties(userId);
@@ -86,8 +78,8 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // Use passed hostId or fallback to headers
-    const activeHostId = hostId || userId;
+    // Only operators may create listings on behalf of another host
+    const activeHostId = session.isSuperAdmin && hostId ? hostId : userId;
 
     if (!activeHostId) {
       return NextResponse.json({ success: false, error: "Missing identity metadata parameters (hostId)", data: "Missing identity metadata parameters (hostId)" }, { status: 400 });
@@ -101,6 +93,13 @@ export async function POST(request: NextRequest) {
     const price = Number(basePricePerNight);
     if (isNaN(price) || price < 0) {
       return NextResponse.json({ success: false, error: "basePricePerNight must be a positive number", data: "basePricePerNight must be a positive number" }, { status: 400 });
+    }
+
+    // Property ids are derived from the slug; never let a new listing overwrite someone else's
+    const normalizedSlug = String(slug).trim().toLowerCase();
+    const clash = await getProperty(normalizedSlug);
+    if (clash && !ownsProperty(session, clash) && !session.isSuperAdmin) {
+      return NextResponse.json({ success: false, error: "That listing address is already taken.", data: "Slug already in use." }, { status: 409 });
     }
 
     const property = await createProperty({

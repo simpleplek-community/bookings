@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEstimate, updateEstimateStatus, createBooking, listBookings, getProperty, updateBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { getSessionUser, isPaymentsLive, isPartyTo, unauthorized, forbidden } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { estimateId, paymentStatus, customerId, customerEmail, customerName } = body;
+    const { estimateId, customerName } = body;
 
     if (!estimateId) {
       return NextResponse.json({ success: false, error: "estimateId is required." }, { status: 400 });
     }
 
+    const session = await getSessionUser(request);
+    if (!session) return unauthorized();
+
     const estimate = await getEstimate(estimateId);
     if (!estimate) {
       return NextResponse.json({ success: false, error: "Estimate not found." }, { status: 404 });
     }
+    if (!isPartyTo(session, estimate)) {
+      return forbidden("You are not part of this estimate.");
+    }
+
+    // With live payments the client redirect proves nothing; the signed Yoco webhook marks
+    // bookings as paid. This route then only reports what the webhook already recorded.
+    const live = isPaymentsLive();
+    const paymentStatus = live ? undefined : body.paymentStatus;
+    const customerId = session.uid;
+    const customerEmail = session.email || undefined;
 
     const property = await getProperty(estimate.propertyId);
     const isHourly = property?.bookingType === "hourly";
@@ -33,6 +47,14 @@ export async function POST(request: NextRequest) {
         return b.estimateId === estimateId;
       }
     });
+
+    if (live) {
+      if (existingBooking) {
+        const { token, ...visible } = existingBooking;
+        return NextResponse.json({ success: true, booking: visible, message: "Booking already confirmed." });
+      }
+      return NextResponse.json({ success: true, pending: true, message: "Payment is being confirmed." }, { status: 202 });
+    }
 
     if (existingBooking) {
       // Sync guests & details from estimate to existing booking

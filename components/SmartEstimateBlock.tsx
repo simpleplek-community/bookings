@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { formatDisplayDate } from "@/lib/utils";
 import { useAuth } from "@/components/auth";
 
-import { MandatoryRule, getRulePackageIds } from "@/lib/types";
+import { MandatoryRule } from "@/lib/types";
+import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -27,35 +28,6 @@ interface PackageData {
   category: string;
   isEnabled: boolean;
   isPro?: boolean;
-}
-
-interface CalculateEstimateProps {
-  basePricePerNight: number;
-  fromDate: Date;
-  toDate: Date;
-  weeklyDiscount?: number;
-  monthlyDiscount?: number;
-}
-
-export function calculateBookingTotal({
-  basePricePerNight,
-  fromDate,
-  toDate,
-  weeklyDiscount = 0,
-  monthlyDiscount = 0,
-}: CalculateEstimateProps): number {
-  const diffTime = Math.abs(toDate.getTime() - fromDate.getTime());
-  const nights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-
-  let baseCost = basePricePerNight * nights;
-
-  if (nights >= 28 && monthlyDiscount > 0) {
-    baseCost = baseCost * (1 - monthlyDiscount / 100);
-  } else if (nights >= 7 && weeklyDiscount > 0) {
-    baseCost = baseCost * (1 - weeklyDiscount / 100);
-  }
-
-  return baseCost;
 }
 
 interface SmartEstimateBlockProps {
@@ -188,22 +160,10 @@ export default function SmartEstimateBlock({
   }, [customFromDate, customToDate, existingBookings, selectedPropertyId]);
 
   // Calculate nights and pricing
-  const isHourly = selectedProperty?.bookingType === "hourly";
-  const stayHours = Math.max(
-    1,
-    Math.ceil(
-      Math.abs(new Date(customToDate).getTime() - new Date(customFromDate).getTime()) /
-        (1000 * 60 * 60)
-    )
-  );
-  const stayNights = Math.max(
-    1,
-    Math.ceil(
-      Math.abs(new Date(customToDate).getTime() - new Date(customFromDate).getTime()) /
-        (1000 * 60 * 60 * 24)
-    )
-  );
-  const nights = isHourly ? stayHours : stayNights;
+  const basePricePerNight = selectedProperty ? selectedProperty.basePricePerNight : 1500;
+  const stayQuote = quoteStay(selectedProperty ?? { basePricePerNight }, customFromDate, customToDate);
+  const isHourly = stayQuote.isHourly;
+  const nights = stayQuote.units;
 
   const isPackagePro = (p: PackageData) => Boolean(p.isPro || p.category === "pro");
   const isPackageAddon = (p: PackageData) => p.category === "addon";
@@ -212,31 +172,10 @@ export default function SmartEstimateBlock({
     (p) => !isPackageAddon(p) && (!isPackagePro(p) || isProUser)
   );
 
-  const matchingRule = React.useMemo(() => {
-    if (!selectedProperty) return null;
-    return (
-      selectedProperty.mandatoryRules?.find((r) => {
-        switch (r.operator) {
-          case "equals":
-            return nights === r.nights;
-          case "greater":
-            return nights > r.nights;
-          case "less":
-            return nights < r.nights;
-          case "greater_or_equal":
-            return nights >= r.nights;
-          case "less_or_equal":
-            return nights <= r.nights;
-          default:
-            return false;
-        }
-      }) || null
-    );
-  }, [selectedProperty, nights]);
-
-  const mandatoryPackageIds = React.useMemo(() => {
-    return getRulePackageIds(matchingRule);
-  }, [matchingRule]);
+  const mandatoryPackageIds = React.useMemo(
+    () => mandatoryPackageIdsFor(selectedProperty, nights),
+    [selectedProperty, nights]
+  );
 
   const hasMandatoryRule = mandatoryPackageIds.length > 0;
 
@@ -273,22 +212,13 @@ export default function SmartEstimateBlock({
     }
   }, [hasMandatoryRule, mandatoryPackageIds, userAllowedMandatoryIds, selectedPackageId, packages, isProUser, availablePackages]);
 
-  const basePricePerNight = selectedProperty ? selectedProperty.basePricePerNight : 1500;
-  
-  let calculatedTotal = basePricePerNight * nights;
-
-  if (bookingMode === "predefined" && selectedPackage) {
-    calculatedTotal = selectedPackage.price;
-  } else if (bookingMode === "custom") {
-    // Custom stay calculation formula
-    calculatedTotal = calculateBookingTotal({
-      basePricePerNight,
-      fromDate: new Date(customFromDate),
-      toDate: new Date(customToDate),
-      weeklyDiscount: selectedProperty?.weeklyDiscount,
-      monthlyDiscount: selectedProperty?.monthlyDiscount,
-    });
-  }
+  // Same calculation the API uses to store and charge the total.
+  const calculatedTotal = quoteStay(
+    selectedProperty ?? { basePricePerNight },
+    customFromDate,
+    customToDate,
+    bookingMode === "predefined" ? selectedPackage : null
+  ).total;
 
   const handleBookAndPay = async () => {
     if (!customerName || !customerEmail) {
@@ -314,8 +244,7 @@ export default function SmartEstimateBlock({
           customerName,
           customerEmail,
           fromDate: new Date(customFromDate).toISOString(),
-          toDate: new Date(customToDate).toISOString(),
-          total: calculatedTotal
+          toDate: new Date(customToDate).toISOString()
         })
       });
 
@@ -373,7 +302,7 @@ export default function SmartEstimateBlock({
         </div>
         <div className="text-right">
           <span className="text-[10px] text-zinc-500 uppercase tracking-wider block font-semibold">Base Price</span>
-          <p className="text-sm font-extrabold text-teal-400">R {basePricePerNight.toLocaleString()}/{isHourly ? "hour" : "night"}</p>
+          <p className="text-sm font-extrabold text-teal-400">R {basePricePerNight.toLocaleString()}/{isHourly ? "slot" : "night"}</p>
         </div>
       </div>
 
@@ -501,8 +430,8 @@ export default function SmartEstimateBlock({
                   {hasMandatoryRule && (
                     <p className="mt-1.5 text-[11px] text-amber-400 font-semibold flex items-center gap-1 animate-pulse">
                       {userAllowedMandatoryIds.length === 1
-                        ? `⚠️ This package deal is mandatory for ${isHourly ? `${nights} ${nights === 1 ? "hour/slot" : "hours/slots"}` : `stays of ${nights} ${nights === 1 ? "night" : "nights"}`}.`
-                        : `⚠️ A package deal is mandatory for ${isHourly ? `${nights} ${nights === 1 ? "hour/slot" : "hours/slots"}` : `stays of ${nights} ${nights === 1 ? "night" : "nights"}`} (choose from allowed options above).`}
+                        ? `⚠️ This package deal is mandatory for ${isHourly ? `${nights} ${nights === 1 ? "slot" : "slots"}` : `stays of ${nights} ${nights === 1 ? "night" : "nights"}`}.`
+                        : `⚠️ A package deal is mandatory for ${isHourly ? `${nights} ${nights === 1 ? "slot" : "slots"}` : `stays of ${nights} ${nights === 1 ? "night" : "nights"}`} (choose from allowed options above).`}
                     </p>
                   )}
                 </>
@@ -535,13 +464,13 @@ export default function SmartEstimateBlock({
         {bookingMode === "custom" && (
           <div className="rounded-2xl border border-white/5 bg-white/5 p-4 space-y-2">
             <div className="flex justify-between text-xs text-white/60">
-              <span>{isHourly ? "Hours Selected:" : "Nights Selected:"}</span>
+              <span>{isHourly ? "Slots Selected:" : "Nights Selected:"}</span>
               <span className="font-bold text-white">
-                {isHourly ? `${nights} hour(s)` : `${nights} night(s)`}
+                {isHourly ? `${nights} slot(s)` : `${nights} night(s)`}
               </span>
             </div>
             <div className="flex justify-between text-xs text-white/60">
-              <span>{isHourly ? `Base Rate (R ${basePricePerNight} × ${nights} hours):` : `Base Rate (R ${basePricePerNight} × ${nights} nights):`}</span>
+              <span>{isHourly ? `Base Rate (R ${basePricePerNight} × ${nights} slot):` : `Base Rate (R ${basePricePerNight} × ${nights} nights):`}</span>
               <span className="font-bold text-white">R {(basePricePerNight * nights).toLocaleString()}</span>
             </div>
             {!isHourly && nights >= 28 && selectedProperty?.monthlyDiscount ? (

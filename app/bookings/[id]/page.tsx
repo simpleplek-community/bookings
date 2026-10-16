@@ -171,8 +171,6 @@ function BookingDetailsContent({ id }: { id: string }) {
         body: JSON.stringify({
           type: addon.id,
           bookingId: booking.id,
-          amountInCentsOverride: Math.round(addon.price * 100),
-          descriptionOverride: `Add-on: ${addon.name} for Booking ${booking.id}`,
         }),
       });
 

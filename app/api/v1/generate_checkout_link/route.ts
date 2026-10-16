@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPackage, getProjectId, listPackageDocIds, getBooking, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 import { parsePriceToCents, createCheckout } from "@/lib/yoco";
+import { getSessionUser } from "@/lib/auth";
 
 const PACKAGE_LABELS: Record<string, string> = {
   shack_stack: "Three nights - The Shack",
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
   const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   const siteUrl = host ? `${proto}://${host}` : request.nextUrl.origin;
 
-  return processGenerateRequest(type, undefined, undefined, undefined, undefined, siteUrl);
+  return processGenerateRequest(type, undefined, undefined, siteUrl);
 }
 
 export async function POST(request: NextRequest) {
@@ -96,17 +97,16 @@ export async function POST(request: NextRequest) {
 
     const bookingId = body.bookingId;
     const estimateId = body.estimateId;
-    const amountInCentsOverride = body.amountInCentsOverride;
-    const descriptionOverride = body.descriptionOverride;
 
     const host = request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
     const siteUrl = host ? `${proto}://${host}` : request.nextUrl.origin;
 
-    const userId = request.headers.get("x-user-id");
-    const userEmail = request.headers.get("x-user-email");
+    const session = await getSessionUser(request);
+    const userId = session?.uid ?? null;
+    const userEmail = session?.emailVerified ? session.email : null;
 
-    return processGenerateRequest(type, bookingId, estimateId, amountInCentsOverride, descriptionOverride, siteUrl, userId, userEmail);
+    return processGenerateRequest(type, bookingId, estimateId, siteUrl, userId, userEmail);
   } catch (err: any) {
     console.error("generate_checkout_link post parsing error:", err);
     return NextResponse.json(
@@ -120,23 +120,27 @@ async function processGenerateRequest(
   type: string,
   bookingId?: string,
   estimateId?: string,
-  amountInCentsOverride?: number,
-  descriptionOverride?: string,
   siteUrl?: string,
   userId?: string | null,
   userEmail?: string | null
 ) {
   try {
-    let pkg = await getPackage(type);
+    // Charge what we stored for the booking/estimate, never a client-supplied amount.
+    const booking = bookingId ? await getBooking(bookingId) : null;
+    const estimate = !booking && estimateId ? await getEstimate(estimateId) : null;
+    if (bookingId && !booking) {
+      return NextResponse.json({ status: false, data: "Booking not found." }, { status: 404, headers: corsHeaders() });
+    }
+    if (estimateId && !booking && !estimate) {
+      return NextResponse.json({ status: false, data: "Estimate not found." }, { status: 404, headers: corsHeaders() });
+    }
+
+    // Amounts never come from the browser: a booking/estimate is charged its stored
+    // total, anything else the stored package price.
+    const storedPkg = await getPackage(type);
+    let pkg = storedPkg;
     if (!pkg) {
-      if (amountInCentsOverride !== undefined) {
-        pkg = {
-          id: type,
-          name: descriptionOverride || "Standard Stay",
-          price: amountInCentsOverride / 100,
-          category: "standard"
-        };
-      } else {
+      if (!booking && !estimate) {
         return NextResponse.json(
           {
             status: false,
@@ -146,6 +150,8 @@ async function processGenerateRequest(
           { status: 404, headers: corsHeaders() }
         );
       }
+      // Label only; the amount below comes from the stored booking/estimate total.
+      pkg = { id: type, name: "Stay Booking", category: "standard" };
     }
 
     // Verify Pro property entitlement if checking out an estimate for a Pro property
@@ -197,10 +203,22 @@ async function processGenerateRequest(
       }
     }
 
-    const amountInCents = amountInCentsOverride !== undefined ? amountInCentsOverride : parsePriceToCents(pkg);
-    const description = descriptionOverride !== undefined ? descriptionOverride : (
-      pkg.description || pkg.name || pkg.title || PACKAGE_LABELS[type.trim()] || type
-    );
+    // Booking + a different package = add-on purchase, charged at the package's stored price.
+    const isAddon = Boolean(booking && storedPkg && storedPkg.id !== booking.packageId);
+    let amountInCents: number;
+    if (estimate) {
+      amountInCents = Math.round(Number(estimate.total) * 100);
+    } else if (booking && !isAddon) {
+      amountInCents = Math.round(Number(booking.total) * 100);
+    } else {
+      amountInCents = parsePriceToCents(pkg);
+    }
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      return NextResponse.json({ status: false, data: "Invalid checkout amount." }, { status: 400, headers: corsHeaders() });
+    }
+    const description = isAddon
+      ? `Add-on: ${pkg.name} for Booking ${booking.id}`
+      : (pkg.description || pkg.name || pkg.title || PACKAGE_LABELS[type.trim()] || type);
 
     const redirectUrl = await createCheckout({
       amountInCents,
@@ -208,7 +226,8 @@ async function processGenerateRequest(
       metadata: {
         packageType: type,
         bookingId: bookingId || "",
-        estimateId: estimateId || ""
+        estimateId: estimateId || "",
+        ...(isAddon ? { intent: "addon", addonId: pkg.id } : {})
       },
       siteUrl
     });

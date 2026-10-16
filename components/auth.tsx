@@ -71,6 +71,71 @@ const isMockAllowed = () => {
   );
 };
 
+/** Only hand session tokens to our own apex domain, its subdomains, or local dev hosts. */
+const isTrustedRedirectTarget = (raw: string): boolean => {
+  try {
+    const target = new URL(raw);
+    if (target.protocol !== "https:" && target.protocol !== "http:") return false;
+    const host = target.hostname;
+    if (host === "simpleplek.co.za" || host.endsWith(".simpleplek.co.za")) {
+      return target.protocol === "https:";
+    }
+    return isMockAllowed() && (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1");
+  } catch {
+    return false;
+  }
+};
+
+/** Same-origin relative path only; blocks "//evil.com" and "javascript:" style redirects. */
+const safeRelativePath = (raw: string | null): string => {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/";
+  return raw;
+};
+
+async function getClientIdToken(): Promise<string | null> {
+  try {
+    if (auth.currentUser) return await auth.currentUser.getIdToken();
+  } catch (err) {
+    console.warn("[Auth] Could not read ID token:", err);
+  }
+  if (isMockAllowed()) {
+    const localSession = localStorage.getItem("auth:mock_session");
+    if (localSession) {
+      const { uid, email } = JSON.parse(localSession);
+      const payload = btoa(JSON.stringify({ uid, email }))
+        .replace(/=+$/, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+      return `mock_id_token_${payload}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * API routes identify the caller from a verified Firebase ID token, so attach it
+ * to every same-origin /api request instead of threading it through each call site.
+ */
+let authFetchInstalled = false;
+function installAuthFetch() {
+  if (authFetchInstalled || typeof window === "undefined") return;
+  authFetchInstalled = true;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const isOwnApi = url.startsWith("/api/") || url.startsWith(`${window.location.origin}/api/`);
+    if (!isOwnApi) return originalFetch(input, init);
+
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    if (!headers.has("Authorization")) {
+      const token = await getClientIdToken();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+    }
+    return originalFetch(input, { ...init, headers });
+  };
+}
+installAuthFetch();
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -83,6 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get("redirect_to");
+      if (redirectTo && !isTrustedRedirectTarget(redirectTo)) {
+        setAuthError("Sign-in redirect target is not allowed.");
+        return;
+      }
       if (redirectTo) {
         try {
           setLoading(true);
@@ -134,6 +203,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const performTokenSignIn = async () => {
           try {
             if (token.startsWith("mock_token_")) {
+              if (!isMockAllowed()) {
+                throw new Error("Mock sign-in tokens are only accepted on development hosts.");
+              }
               const uid = token.replace("mock_token_", "");
               const mockSession: AuthUser = {
                 uid,
@@ -148,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else {
               await signInWithCustomToken(auth, token);
             }
-            const redirectPath = params.get("redirect") || "/";
+            const redirectPath = safeRelativePath(params.get("redirect"));
             window.location.href = redirectPath;
           } catch (err: any) {
             console.error("Failed to sign in with custom token:", err);
