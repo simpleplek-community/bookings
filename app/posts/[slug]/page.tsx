@@ -230,10 +230,10 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
   const isEstimateForThisProperty = Boolean(
     latestEstimate &&
-      property &&
-      (latestEstimate.propertyId === property.id ||
-        latestEstimate.propertyId === property.slug ||
-        latestEstimate.propertyId === slug)
+    property &&
+    (latestEstimate.propertyId === property.id ||
+      latestEstimate.propertyId === property.slug ||
+      latestEstimate.propertyId === slug)
   );
 
   const estimateInviteUrl =
@@ -480,7 +480,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
   ];
 
   const PRO_HERO_IMAGE =
-    "https://cdn.magicpatterns.com/patterns/generated-images/b3c0153b-648c-47ef-8efe-407cfbac2037.jpg";
+    "https://pub-62b3d61e820a424983412732dac4ef9f.r2.dev/hosts/cE63u7tstuREl9Kjy9YPhTnEI513/properties/simple-plek-development/1792160283214_mockup.jpeg";
 
   const isOwner = Boolean(user && property?.hostId && (user.uid === property.hostId || user.email === property.hostId));
   const isProBlocked = isProForbidden || Boolean(property?.isPro && !isProUser && !isOwner);
