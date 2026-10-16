@@ -515,9 +515,7 @@ function BookingsCheckoutContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: targetType,
-          estimateId,
-          amountInCentsOverride: Math.round(finalTotal * 100),
-          descriptionOverride: selectedPackage ? selectedPackage.name : 'Stay Booking'
+          estimateId
         })
       });
 

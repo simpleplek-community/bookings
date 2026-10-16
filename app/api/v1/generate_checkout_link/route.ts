@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
   const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   const siteUrl = host ? `${proto}://${host}` : request.nextUrl.origin;
 
-  return processGenerateRequest(type, undefined, undefined, undefined, undefined, siteUrl);
+  return processGenerateRequest(type, undefined, undefined, siteUrl);
 }
 
 export async function POST(request: NextRequest) {
@@ -97,8 +97,6 @@ export async function POST(request: NextRequest) {
 
     const bookingId = body.bookingId;
     const estimateId = body.estimateId;
-    const amountInCentsOverride = body.amountInCentsOverride;
-    const descriptionOverride = body.descriptionOverride;
 
     const host = request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
@@ -108,7 +106,7 @@ export async function POST(request: NextRequest) {
     const userId = session?.uid ?? null;
     const userEmail = session?.emailVerified ? session.email : null;
 
-    return processGenerateRequest(type, bookingId, estimateId, amountInCentsOverride, descriptionOverride, siteUrl, userId, userEmail);
+    return processGenerateRequest(type, bookingId, estimateId, siteUrl, userId, userEmail);
   } catch (err: any) {
     console.error("generate_checkout_link post parsing error:", err);
     return NextResponse.json(
@@ -122,8 +120,6 @@ async function processGenerateRequest(
   type: string,
   bookingId?: string,
   estimateId?: string,
-  amountInCentsOverride?: number,
-  descriptionOverride?: string,
   siteUrl?: string,
   userId?: string | null,
   userEmail?: string | null
@@ -139,18 +135,12 @@ async function processGenerateRequest(
       return NextResponse.json({ status: false, data: "Estimate not found." }, { status: 404, headers: corsHeaders() });
     }
 
-    let pkg = await getPackage(type);
-    // A synthetic package is only allowed for checkouts not tied to a booking/estimate,
-    // since those never mark anything as paid.
+    // Amounts never come from the browser: a booking/estimate is charged its stored
+    // total, anything else the stored package price.
+    const storedPkg = await getPackage(type);
+    let pkg = storedPkg;
     if (!pkg) {
-      if (amountInCentsOverride !== undefined && !booking && !estimate) {
-        pkg = {
-          id: type,
-          name: descriptionOverride || "Standard Stay",
-          price: amountInCentsOverride / 100,
-          category: "standard"
-        };
-      } else {
+      if (!booking && !estimate) {
         return NextResponse.json(
           {
             status: false,
@@ -160,6 +150,8 @@ async function processGenerateRequest(
           { status: 404, headers: corsHeaders() }
         );
       }
+      // Label only; the amount below comes from the stored booking/estimate total.
+      pkg = { id: type, name: "Stay Booking", category: "standard" };
     }
 
     // Verify Pro property entitlement if checking out an estimate for a Pro property
@@ -212,7 +204,7 @@ async function processGenerateRequest(
     }
 
     // Booking + a different package = add-on purchase, charged at the package's stored price.
-    const isAddon = Boolean(booking && pkg && pkg.id !== booking.packageId);
+    const isAddon = Boolean(booking && storedPkg && storedPkg.id !== booking.packageId);
     let amountInCents: number;
     if (estimate) {
       amountInCents = Math.round(Number(estimate.total) * 100);
@@ -224,9 +216,9 @@ async function processGenerateRequest(
     if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
       return NextResponse.json({ status: false, data: "Invalid checkout amount." }, { status: 400, headers: corsHeaders() });
     }
-    const description = descriptionOverride !== undefined ? descriptionOverride : (
-      pkg.description || pkg.name || pkg.title || PACKAGE_LABELS[type.trim()] || type
-    );
+    const description = isAddon
+      ? `Add-on: ${pkg.name} for Booking ${booking.id}`
+      : (pkg.description || pkg.name || pkg.title || PACKAGE_LABELS[type.trim()] || type);
 
     const redirectUrl = await createCheckout({
       amountInCents,

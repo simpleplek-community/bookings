@@ -335,8 +335,6 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
         body: JSON.stringify({
           type: targetType,
           estimateId: estimate.id,
-          amountInCentsOverride: Math.round(finalTotal * 100),
-          descriptionOverride: currentSelectedPackage ? currentSelectedPackage.name : "Stay Booking",
           userId: user?.uid,
           email: user?.email,
           name: user?.displayName || user?.email?.split("@")[0] || "Guest"

@@ -10,6 +10,25 @@ let app: any;
 let cachedProjectId: string | null = null;
 let isMockMode = false;
 
+/**
+ * The local JSON mock store is for development only. In production a missing or
+ * broken FIREBASE_SERVICE_ACCOUNT_JSON must fail loudly rather than silently
+ * serving fake data, because mock mode also accepts forgeable mock auth tokens.
+ * Set ALLOW_MOCK_DB=true to opt in explicitly (e.g. a demo deployment).
+ */
+function mockModeAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_MOCK_DB === "true";
+}
+
+function enterMockMode(reason: string): null {
+  if (!mockModeAllowed()) {
+    throw new Error(`Firebase is not configured correctly (${reason}). Refusing to fall back to the mock database in production.`);
+  }
+  console.warn(`⚠️ ${reason}. Operating in MOCK MODE (db-mock.json).`);
+  isMockMode = true;
+  return null;
+}
+
 const MOCK_DB_PATH = process.env.VERCEL
   ? path.join("/tmp", "db-mock.json")
   : path.join(process.cwd(), "db-mock.json");
@@ -66,9 +85,7 @@ export function getFirestore(): any {
   if (!app) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!raw) {
-      console.warn("⚠️ FIREBASE_SERVICE_ACCOUNT_JSON is not set. Operating in MOCK MODE (db-mock.json).");
-      isMockMode = true;
-      return null;
+      return enterMockMode("FIREBASE_SERVICE_ACCOUNT_JSON is not set");
     }
 
     const trimmed = raw.trim();
@@ -76,9 +93,7 @@ export function getFirestore(): any {
     try {
       credentials = JSON.parse(trimmed);
     } catch (err: any) {
-      console.error("❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON. Falling back to MOCK MODE.", err.message);
-      isMockMode = true;
-      return null;
+      return enterMockMode(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${err.message}`);
     }
 
     try {
@@ -93,9 +108,7 @@ export function getFirestore(): any {
       }
       cachedProjectId = credentials.project_id || null;
     } catch (err: any) {
-      console.error("❌ Failed to initialize Firebase Admin SDK. Falling back to MOCK MODE.", err.message);
-      isMockMode = true;
-      return null;
+      return enterMockMode(`Failed to initialize Firebase Admin SDK: ${err.message}`);
     }
   }
   return getFirestoreAdmin();
@@ -607,11 +620,13 @@ export async function getUserDates(uid: string): Promise<any | null> {
 
 // Platform operators. Only honoured for verified email addresses, otherwise
 // anyone could register an unverified account with one of these emails.
-const SUPER_ADMIN_EMAILS = [
-  "thankyou.digital@gmail.com",
-  "admin@llandudnostays.co.za",
-  "jmaclachlan@gmail.com",
-];
+/** Platform operators, from ADMIN_EMAILS (comma-separated). They must sign in with a verified email. */
+function superAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 export function isSuperAdmin(email?: string | null, emailVerified = false): boolean {
   if (!email) return false;
@@ -619,9 +634,9 @@ export function isSuperAdmin(email?: string | null, emailVerified = false): bool
   getFirestore();
   if (isMockMode) {
     // Local mock users with "admin" in their email are operators in development
-    return normalized.includes("admin") || SUPER_ADMIN_EMAILS.includes(normalized);
+    return normalized.includes("admin") || superAdminEmails().includes(normalized);
   }
-  return emailVerified && SUPER_ADMIN_EMAILS.includes(normalized);
+  return emailVerified && superAdminEmails().includes(normalized);
 }
 
 export async function isUserAdmin(uid: string, email?: string | null, emailVerified = false): Promise<boolean> {

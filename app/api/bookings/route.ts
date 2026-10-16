@@ -84,25 +84,17 @@ function parseICS(icsText: string, source: string): any[] {
 }
 
 async function getExternalEvents(propertyId?: string): Promise<any[]> {
-  // Default fallbacks from the prompt
-  let gcalUrl = "https://calendar.google.com/calendar/ical/thankyou.digital%40gmail.com/public/basic.ics";
-  let airbnbUrl = "https://www.airbnb.co.za/calendar/ical/1667386340564933279.ics?t=7c5748bff23743a9b22d1c04b63ed656";
-
-  // If we have a propertyId, load its custom URLs from the database
-  if (propertyId) {
-    try {
-      const prop = await getProperty(propertyId);
-      if (prop) {
-        if (prop.googleCalendarUrl !== undefined && prop.googleCalendarUrl !== null) {
-          gcalUrl = prop.googleCalendarUrl;
-        }
-        if (prop.airbnbCalendarUrl !== undefined && prop.airbnbCalendarUrl !== null) {
-          airbnbUrl = prop.airbnbCalendarUrl;
-        }
-      }
-    } catch (err) {
-      console.error(`Error looking up property urls for propertyId ${propertyId}:`, err);
-    }
+  // Feeds come only from the property's own settings. There is no default feed:
+  // a hardcoded one leaked a private Airbnb export URL and blocked other properties' dates.
+  if (!propertyId) return [];
+  let gcalUrl = "";
+  let airbnbUrl = "";
+  try {
+    const prop = await getProperty(propertyId);
+    gcalUrl = prop?.googleCalendarUrl || "";
+    airbnbUrl = prop?.airbnbCalendarUrl || "";
+  } catch (err) {
+    console.error(`Error looking up property urls for propertyId ${propertyId}:`, err);
   }
 
   const now = Date.now();
