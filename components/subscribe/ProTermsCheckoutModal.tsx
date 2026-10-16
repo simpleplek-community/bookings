@@ -146,7 +146,7 @@ export function ProTermsCheckoutModal({
         </div>
 
         {/* Modal Footer */}
-        <DialogFooter className="p-4 border-t bg-muted/20 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+        <DialogFooter className="m-0 p-4 sm:px-6 sm:py-4 border-t bg-muted/20 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
           <div className="text-xs text-muted-foreground">
             {hasAcknowledged && (
               <span className="text-primary font-medium flex items-center gap-1">
@@ -154,7 +154,7 @@ export function ProTermsCheckoutModal({
               </span>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-3 shrink-0 my-1 mr-1">
             <Button
               type="button"
               variant="outline"
@@ -169,7 +169,7 @@ export function ProTermsCheckoutModal({
               size="sm"
               onClick={handleConfirm}
               disabled={!hasAcknowledged || isProcessing}
-              className="gap-2 font-medium"
+              className="gap-2 font-medium px-4"
             >
               {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
               {isProcessing
