@@ -58,7 +58,8 @@ interface Estimate {
   guestsDetails?: Record<string, { name: string; email: string }>;
 }
 
-import { MandatoryRule, getRulePackageIds } from "@/lib/types";
+import { MandatoryRule } from "@/lib/types";
+import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -133,37 +134,22 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   const from = new Date(estimate.fromDate);
   const to = new Date(estimate.toDate);
 
-  const isHourly = property?.bookingType === "hourly";
-  const stayNights = Math.max(
-    1,
-    Math.ceil(Math.abs(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
-  );
+  const basePricePerNight = property ? property.basePricePerNight : 1500;
+  const currentSelectedPackage = packages.find(p => p.id === selectedPackageId) || (selectedPackageId === estimate.packageId ? selectedPackage : null);
 
-  const nights = isHourly ? 1 : stayNights;
+  // Same calculation the API uses to store and charge the total.
+  const quote = quoteStay(property ?? { basePricePerNight }, from, to, currentSelectedPackage);
+  const isHourly = quote.isHourly;
+  const nights = quote.units;
   const isPaid = isHourly
     ? hasUserPaid
     : (estimate.paymentStatus === "paid" || estimate.paymentStatus === "success" || hasUserPaid);
 
-  const basePricePerNight = property ? property.basePricePerNight : 1500;
-  let baseCost = basePricePerNight * nights;
-
   const weeklyDiscount = property?.weeklyDiscount ?? 0;
   const monthlyDiscount = property?.monthlyDiscount ?? 0;
-  let discountAmount = 0;
-
-  if (!isHourly) {
-    if (nights >= 28 && monthlyDiscount > 0) {
-      discountAmount = baseCost * (monthlyDiscount / 100);
-      baseCost = baseCost - discountAmount;
-    } else if (nights >= 7 && weeklyDiscount > 0) {
-      discountAmount = baseCost * (weeklyDiscount / 100);
-      baseCost = baseCost - discountAmount;
-    }
-  }
-
-  const currentSelectedPackage = packages.find(p => p.id === selectedPackageId) || (selectedPackageId === estimate.packageId ? selectedPackage : null);
-  const packagePrice = currentSelectedPackage ? (currentSelectedPackage.price || 0) : 0;
-  const finalTotal = baseCost + packagePrice;
+  const discountAmount = quote.discountAmount;
+  const packagePrice = quote.packagePrice;
+  const finalTotal = quote.total;
 
   const isPackagePro = (p: Package) => Boolean(p.isPro || p.category === "pro");
   const availablePackages = packages.filter((p) => !isPackagePro(p) || isProUser);
@@ -183,18 +169,12 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     setPackageError(null);
 
     try {
-      const activePkg = packages.find(p => p.id === packageId);
-      const activePrice = activePkg ? (activePkg.price || 0) : 0;
-
-      const newTotal = baseCost + activePrice;
-
       const res = await fetch("/api/estimates", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           estimateId: estimate.id,
-          packageId: packageId || null,
-          total: newTotal
+          packageId: packageId || null
         })
       });
 
@@ -203,8 +183,8 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
         throw new Error(result.error || "Failed to update package option in database.");
       }
 
-      estimate.total = newTotal;
-      estimate.packageId = packageId || null;
+      estimate.total = result.estimate?.total ?? estimate.total;
+      estimate.packageId = result.estimate?.packageId ?? (packageId || null);
     } catch (err: any) {
       setPackageError(err?.message || "Failed to update the selected package.");
     } finally {
@@ -212,26 +192,10 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     }
   };
 
-  const mandatoryPackageIds = React.useMemo(() => {
-    if (!property) return [];
-    const rule = property.mandatoryRules?.find((r) => {
-      switch (r.operator) {
-        case "equals":
-          return nights === r.nights;
-        case "greater":
-          return nights > r.nights;
-        case "less":
-          return nights < r.nights;
-        case "greater_or_equal":
-          return nights >= r.nights;
-        case "less_or_equal":
-          return nights <= r.nights;
-        default:
-          return false;
-      }
-    });
-    return getRulePackageIds(rule);
-  }, [property, nights]);
+  const mandatoryPackageIds = React.useMemo(
+    () => mandatoryPackageIdsFor(property, nights),
+    [property, nights]
+  );
 
   const hasMandatoryRule = mandatoryPackageIds.length > 0;
 

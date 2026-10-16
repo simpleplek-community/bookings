@@ -45,7 +45,8 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import { MandatoryRule, getRulePackageIds } from "@/lib/types";
+import { MandatoryRule } from "@/lib/types";
+import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -126,51 +127,23 @@ function BookingsCheckoutContent() {
   const from = savedDates ? new Date(savedDates.fromDate) : new Date();
   const to = savedDates ? new Date(savedDates.toDate) : new Date();
 
-  const isHourly = property?.bookingType === "hourly";
-  const stayNights = savedDates ? Math.max(1, Math.ceil(Math.abs(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))) : 0;
-  const nights = isHourly ? 1 : stayNights;
-
   const basePricePerNight = property ? property.basePricePerNight : 1500;
   const selectedPackage = packages.find((p) => p.id === selectedPackageId);
 
-  let baseCost = basePricePerNight * nights;
+  // Same calculation the API uses to store and charge the total.
+  const quote = quoteStay(property ?? { basePricePerNight }, from, to, selectedPackage);
+  const isHourly = quote.isHourly;
+  const nights = savedDates ? quote.units : 0;
+  const discountAmount = savedDates ? quote.discountAmount : 0;
   const weeklyDiscount = property?.weeklyDiscount ?? 0;
   const monthlyDiscount = property?.monthlyDiscount ?? 0;
-  let discountAmount = 0;
+  const packagePrice = quote.packagePrice;
+  const finalTotal = savedDates ? quote.total : packagePrice;
 
-  if (!isHourly) {
-    if (nights >= 28 && monthlyDiscount > 0) {
-      discountAmount = baseCost * (monthlyDiscount / 100);
-      baseCost = baseCost - discountAmount;
-    } else if (nights >= 7 && weeklyDiscount > 0) {
-      discountAmount = baseCost * (weeklyDiscount / 100);
-      baseCost = baseCost - discountAmount;
-    }
-  }
-
-  const packagePrice = selectedPackage ? selectedPackage.price || 0 : 0;
-  const finalTotal = baseCost + packagePrice;
-
-  const mandatoryPackageIds = React.useMemo(() => {
-    if (!property) return [];
-    const rule = property.mandatoryRules?.find((r) => {
-      switch (r.operator) {
-        case "equals":
-          return nights === r.nights;
-        case "greater":
-          return nights > r.nights;
-        case "less":
-          return nights < r.nights;
-        case "greater_or_equal":
-          return nights >= r.nights;
-        case "less_or_equal":
-          return nights <= r.nights;
-        default:
-          return false;
-      }
-    });
-    return getRulePackageIds(rule);
-  }, [property, nights]);
+  const mandatoryPackageIds = React.useMemo(
+    () => mandatoryPackageIdsFor(property, nights),
+    [property, nights]
+  );
 
   const hasMandatoryRule = mandatoryPackageIds.length > 0;
 
@@ -498,8 +471,7 @@ function BookingsCheckoutContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             estimateId: latestEstimate.id,
-            packageId: selectedPackageId || null,
-            total: finalTotal
+            packageId: selectedPackageId || null
           })
         });
       } else {
@@ -514,8 +486,7 @@ function BookingsCheckoutContent() {
             customerEmail: user.email || "",
             customerId: user.uid,
             fromDate: from.toISOString(),
-            toDate: to.toISOString(),
-            total: finalTotal
+            toDate: to.toISOString()
           })
         });
 

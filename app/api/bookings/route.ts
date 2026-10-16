@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBooking, listBookings, getProperty, updateBookingStatus, getPackage, getUserProfile, isUserAdmin, getBooking } from "@/lib/firebase";
+import { createBooking, listBookings, getProperty, updateBookingStatus, getBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { getSessionUser, isPaymentsLive, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
+import { quoteStayForRequest } from "@/lib/stay-quote";
 
 // In-memory cache for external feeds keyed by URL to support multiple properties
 interface CacheEntry {
@@ -204,13 +205,12 @@ export async function POST(request: NextRequest) {
       customerName,
       customerEmail,
       fromDate,
-      toDate,
-      total
+      toDate
     } = body;
 
     // Validation
-    if (!propertyId || !customerName || !customerEmail || !fromDate || !toDate || total === undefined) {
-      return NextResponse.json({ success: false, error: "Missing required fields, including total." }, { status: 400 });
+    if (!propertyId || !customerName || !customerEmail || !fromDate || !toDate) {
+      return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
     }
 
     const start = new Date(fromDate);
@@ -243,36 +243,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "The selected dates conflict with an existing booking." }, { status: 400 });
     }
 
-    // 2. Verify Pro package entitlement if packageId is specified
-    if (packageId) {
-      const selectedPkg = await getPackage(packageId);
-      if (selectedPkg && (selectedPkg.isPro || selectedPkg.category === "pro")) {
-        const session = await getSessionUser(request);
-        const userId = session?.uid;
-        const profile = userId ? await getUserProfile(userId) : null;
-        const isAdmin = session ? await isUserAdmin(session.uid, session.email, session.emailVerified) : false;
-        const isProCustomer = profile?.plan === "pro" || Boolean(isAdmin);
-
-        if (!isProCustomer) {
-          return NextResponse.json(
-            { success: false, error: "This package is exclusively available to Pro subscribers. Upgrade to Pro to book this package." },
-            { status: 403 }
-          );
-        }
-      }
+    // 2. Price the stay on the server (also enforces mandatory rules and Pro packages).
+    //    Any client-sent total is ignored.
+    const property = await getProperty(propertyId);
+    if (!property) {
+      return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
+    }
+    const session = await getSessionUser(request);
+    const priced = await quoteStayForRequest(session, property, start, end, packageId);
+    if (!priced.ok) {
+      return NextResponse.json({ success: false, error: priced.error }, { status: priced.status });
     }
 
     // 3. Persist the Booking
-    const session = await getSessionUser(request);
     const booking = await createBooking({
       propertyId,
-      packageId: packageId || null,
+      packageId: priced.packageId,
       customerName,
       customerEmail,
       ...(session ? { customerId: session.uid } : {}),
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
-      total: Number(total),
+      total: priced.quote.total,
       paymentStatus: "pending"
     });
 

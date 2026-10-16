@@ -45,7 +45,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 
-import { MandatoryRule, getRulePackageIds } from "@/lib/types";
+import { MandatoryRule } from "@/lib/types";
+import { quoteStay } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -291,22 +292,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
         }
       }
 
-      const isHourly = property.bookingType === "hourly";
-      const stayDuration = isHourly
-        ? 1
-        : Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-
-      let baseCost = property.basePricePerNight * stayDuration;
-      if (!isHourly) {
-        const weeklyDiscount = property.weeklyDiscount ?? 0;
-        const monthlyDiscount = property.monthlyDiscount ?? 0;
-        if (stayDuration >= 28 && monthlyDiscount > 0) {
-          baseCost = baseCost * (1 - monthlyDiscount / 100);
-        } else if (stayDuration >= 7 && weeklyDiscount > 0) {
-          baseCost = baseCost * (1 - weeklyDiscount / 100);
-        }
-      }
-
+      // The server prices the estimate (dates, discounts, mandatory packages).
       const estRes = await fetch("/api/estimates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -318,7 +304,6 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
           customerId: user.uid,
           fromDate: start.toISOString(),
           toDate: end.toISOString(),
-          total: baseCost,
         }),
       });
 
@@ -385,70 +370,18 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
       setSavedDates(result.data);
 
-      let estimatedTotal = 0;
-      let matchedMandatoryPackageId: string | null = null;
-
-      const isHourly = property.bookingType === "hourly";
-      const stayDuration = isHourly
-        ? 1
-        : Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-
-      if (property.mandatoryRules) {
-        const rule = property.mandatoryRules.find((r) => {
-          switch (r.operator) {
-            case "equals":
-              return stayDuration === r.nights;
-            case "greater":
-              return stayDuration > r.nights;
-            case "less":
-              return stayDuration < r.nights;
-            case "greater_or_equal":
-              return stayDuration >= r.nights;
-            case "less_or_equal":
-              return stayDuration <= r.nights;
-            default:
-              return false;
-          }
-        });
-        if (rule) {
-          const allowedIds = getRulePackageIds(rule);
-          const isPkgPro = (p: PackageData) => Boolean(p.isPro || p.category === "pro");
-          const userAllowedIds = allowedIds.filter((id) => {
-            const pkg = packages.find((p) => p.id === id);
-            if (!pkg) return true;
-            return !isPkgPro(pkg) || isProUser;
-          });
-          matchedMandatoryPackageId = userAllowedIds[0] || allowedIds[0] || null;
-        }
-      }
-
-      const mandatoryPackage = matchedMandatoryPackageId ? packages.find((p) => p.id === matchedMandatoryPackageId) : null;
-      const packagePrice = mandatoryPackage ? (mandatoryPackage.price || 0) : 0;
-
-      let baseCost = property.basePricePerNight * stayDuration;
-      if (!isHourly) {
-        const weeklyDiscount = property.weeklyDiscount ?? 0;
-        const monthlyDiscount = property.monthlyDiscount ?? 0;
-        if (stayDuration >= 28 && monthlyDiscount > 0) {
-          baseCost = baseCost * (1 - monthlyDiscount / 100);
-        } else if (stayDuration >= 7 && weeklyDiscount > 0) {
-          baseCost = baseCost * (1 - weeklyDiscount / 100);
-        }
-      }
-      estimatedTotal = baseCost + packagePrice;
-
+      // The server prices the estimate and applies any mandatory package rule.
       const estRes = await fetch("/api/estimates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           propertyId: property.id,
-          packageId: matchedMandatoryPackageId,
+          packageId: null,
           customerName: user.displayName || user.email?.split("@")[0] || "Authenticated Guest",
           customerEmail: user.email || "",
           customerId: user.uid,
           fromDate: start.toISOString(),
           toDate: end.toISOString(),
-          total: estimatedTotal,
         }),
       });
 
@@ -595,30 +528,14 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
   const datesLocked = !!savedDates;
   let nights = 0;
-  let hours = 0;
   let baseStayCost = 0;
   let discountAmount = 0;
 
   if (datesLocked && savedDates) {
-    const start = new Date(savedDates.fromDate);
-    const end = new Date(savedDates.toDate);
-    if (property.bookingType === "hourly") {
-      hours = Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60)));
-      baseStayCost = property.basePricePerNight;
-    } else {
-      nights = Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-      let cost = property.basePricePerNight * nights;
-      const weeklyDiscount = property.weeklyDiscount ?? 0;
-      const monthlyDiscount = property.monthlyDiscount ?? 0;
-      if (nights >= 28 && monthlyDiscount > 0) {
-        discountAmount = cost * (monthlyDiscount / 100);
-        cost = cost - discountAmount;
-      } else if (nights >= 7 && weeklyDiscount > 0) {
-        discountAmount = cost * (weeklyDiscount / 100);
-        cost = cost - discountAmount;
-      }
-      baseStayCost = cost;
-    }
+    const quote = quoteStay(property, savedDates.fromDate, savedDates.toDate);
+    nights = quote.isHourly ? 0 : quote.units;
+    baseStayCost = quote.stayCost;
+    discountAmount = quote.discountAmount;
   }
 
   return (

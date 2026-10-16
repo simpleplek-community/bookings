@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createEstimate, updateEstimate, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 import { getSessionUser, isPartyTo, unauthorized, forbidden } from "@/lib/auth";
+import { quoteStayForRequest } from "@/lib/stay-quote";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,13 +17,12 @@ export async function POST(request: NextRequest) {
       customerName,
       fromDate,
       toDate,
-      total,
       guests,
       guestsDetails
     } = body;
 
     // Validation
-    if (!propertyId || !customerName || !customerEmail || !customerId || !fromDate || !toDate || total === undefined) {
+    if (!propertyId || !customerName || !customerEmail || !customerId || !fromDate || !toDate) {
       return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
     }
 
@@ -53,15 +53,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid check-in or check-out date." }, { status: 400 });
     }
 
+    // The total is always priced here; any client-sent total is ignored.
+    const priced = await quoteStayForRequest(session, property, start, end, packageId);
+    if (!priced.ok) {
+      return NextResponse.json({ success: false, error: priced.error }, { status: priced.status });
+    }
+
     const estimate = await createEstimate({
       propertyId,
-      packageId: packageId || null,
+      packageId: priced.packageId,
       customerName,
       customerEmail,
       customerId,
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
-      total: Number(total),
+      total: priced.quote.total,
       guests: Array.isArray(guests) ? guests : [],
       guestsDetails: typeof guestsDetails === "object" && guestsDetails !== null ? guestsDetails : {}
     });
@@ -76,7 +82,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { estimateId, packageId, total } = body;
+    const { estimateId, packageId } = body;
 
     if (!estimateId) {
       return NextResponse.json({ success: false, error: "estimateId is required." }, { status: 400 });
@@ -95,16 +101,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "This estimate has already been paid." }, { status: 409 });
     }
 
+    const property = await getProperty(existing.propertyId);
+    if (!property) {
+      return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
+    }
+
+    // Reprice from the stored stay dates; any client-sent total is ignored.
+    const priced = await quoteStayForRequest(session, property, existing.fromDate, existing.toDate, packageId);
+    if (!priced.ok) {
+      return NextResponse.json({ success: false, error: priced.error }, { status: priced.status });
+    }
+
     const updated = await updateEstimate(estimateId, {
-      packageId: packageId || null,
-      total: Number(total)
+      packageId: priced.packageId,
+      total: priced.quote.total
     });
 
     if (!updated) {
       return NextResponse.json({ success: false, error: "Estimate not found or update failed." }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: "Estimate updated successfully." });
+    return NextResponse.json({
+      success: true,
+      message: "Estimate updated successfully.",
+      estimate: { ...existing, packageId: priced.packageId, total: priced.quote.total }
+    });
   } catch (error: any) {
     console.error("PATCH /api/estimates error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
