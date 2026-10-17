@@ -28,43 +28,51 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { plan, billingInterval, consentAcknowledged } = body;
 
-    if (!consentAcknowledged) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Explicit consent acknowledging the Share Block / Leasehold Terms & Conditions is required.",
-        },
-        { status: 400 }
-      );
-    }
-
     const resolvedPlan = plan || "pro";
     const resolvedInterval: "monthly" | "annual" = billingInterval === "monthly" ? "monthly" : "annual";
-    const ipAddress = getClientIp(request);
-    const userAgent = request.headers.get("user-agent") || undefined;
+    let consentAuditId: string | undefined = undefined;
 
-    // Log timestamped audit record of explicit consent in database
-    const auditRecord = await logTermsConsent({
-      userId,
-      ipAddress,
-      userAgent,
-      plan: resolvedInterval,
-      termsVersion: "2025.1",
-      sectionsAcknowledged: [
-        "11.2 Pro Membership: Share Block / Leasehold Acquisition",
-        "12 Pro Plan Cancellation & Member Credit System",
-      ],
-      consentStatement:
-        "I have read, understood, and explicitly agree to the Share Block / Leasehold Acquisition Terms & Conditions (Sections 11 & 12), including capital allocation, operational levies, cancellation penalties, and closed-loop non-cash Member Credits.",
-    });
+    // Only Pro Annual involves Share Block / Leasehold Capital Acquisition
+    if (resolvedInterval === "annual") {
+      if (!consentAcknowledged) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Explicit consent acknowledging the Share Block / Leasehold Terms & Conditions is required for Pro Annual.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const ipAddress = getClientIp(request);
+      const userAgent = request.headers.get("user-agent") || undefined;
+
+      const auditRecord = await logTermsConsent({
+        userId,
+        ipAddress,
+        userAgent,
+        plan: "annual",
+        termsVersion: "2025.1",
+        sectionsAcknowledged: [
+          "11.2 Pro Membership: Share Block / Leasehold Acquisition",
+          "12 Pro Plan Cancellation & Member Credit System",
+        ],
+        consentStatement:
+          "I have read, understood, and explicitly agree to the Share Block / Leasehold Acquisition Terms & Conditions (Sections 11 & 12), including capital allocation, operational levies, cancellation penalties, and closed-loop non-cash Member Credits.",
+      });
+
+      consentAuditId = auditRecord.id;
+      console.log(`[Dev Mock Sub] Consent logged (${auditRecord.id}). Promoted user ${userId} to ${resolvedPlan} role (${resolvedInterval}).`);
+    } else {
+      console.log(`[Dev Mock Sub] Promoted user ${userId} to standard ${resolvedPlan} role (${resolvedInterval}) without Share Block.`);
+    }
 
     await promoteUserToAdmin(userId, resolvedPlan, resolvedInterval);
-    console.log(`[Dev Mock Sub] Consent logged (${auditRecord.id}). Promoted user ${userId} to ${resolvedPlan} role (${resolvedInterval}) successfully.`);
 
     return NextResponse.json({
       success: true,
-      message: `User promoted to ${resolvedPlan} role.`,
-      consentAuditId: auditRecord.id,
+      message: `User promoted to ${resolvedPlan} role (${resolvedInterval}).`,
+      ...(consentAuditId ? { consentAuditId } : {}),
     });
   } catch (err: unknown) {
     console.error("Mock subscribe confirmation error:", err);

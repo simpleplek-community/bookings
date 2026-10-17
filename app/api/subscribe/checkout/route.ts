@@ -29,45 +29,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing required parameter (plan)" }, { status: 400 });
     }
 
-    if (!consentAcknowledged) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Explicit consent to Share Block / Leasehold Terms & Conditions (Sections 11 & 12) is required before proceeding to payment.",
-        },
-        { status: 400 }
-      );
-    }
-
     const isAnnual = plan === "annual";
     const resolvedAmountInCents = isAnnual ? 15000 : 1500;
     const ipAddress = getClientIp(request);
     const userAgent = request.headers.get("user-agent") || undefined;
+    let consentAuditId: string | undefined = undefined;
 
-    // Log timestamped audit record of explicit consent in database
-    const auditRecord = await logTermsConsent({
-      userId,
-      ipAddress,
-      userAgent,
-      plan: isAnnual ? "annual" : "monthly",
-      termsVersion: "2025.1",
-      sectionsAcknowledged: [
-        "11.2 Pro Membership: Share Block / Leasehold Acquisition",
-        "12 Pro Plan Cancellation & Member Credit System",
-      ],
-      consentStatement:
-        "I have read, understood, and explicitly agree to the Share Block / Leasehold Acquisition Terms & Conditions (Sections 11 & 12), including capital allocation, operational levies, cancellation penalties, and closed-loop non-cash Member Credits.",
-    });
+    // Only Pro Annual involves Share Block / Leasehold Capital Acquisition
+    if (isAnnual) {
+      if (!consentAcknowledged) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Explicit consent to Share Block / Leasehold Terms & Conditions (Sections 11 & 12) is required before proceeding to payment for Pro Annual.",
+          },
+          { status: 400 }
+        );
+      }
 
-    console.log(`[Terms Audit] Logged consent ${auditRecord.id} for user ${userId} from IP ${ipAddress} for plan ${plan}.`);
+      // Log timestamped audit record of explicit consent in database
+      const auditRecord = await logTermsConsent({
+        userId,
+        ipAddress,
+        userAgent,
+        plan: "annual",
+        termsVersion: "2025.1",
+        sectionsAcknowledged: [
+          "11.2 Pro Membership: Share Block / Leasehold Acquisition",
+          "12 Pro Plan Cancellation & Member Credit System",
+        ],
+        consentStatement:
+          "I have read, understood, and explicitly agree to the Share Block / Leasehold Acquisition Terms & Conditions (Sections 11 & 12), including capital allocation, operational levies, cancellation penalties, and closed-loop non-cash Member Credits.",
+      });
+
+      consentAuditId = auditRecord.id;
+      console.log(`[Terms Audit] Logged Pro Annual consent ${auditRecord.id} for user ${userId} from IP ${ipAddress}.`);
+    }
 
     const host = request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
     const siteUrl = host ? `${proto}://${host}` : request.nextUrl.origin;
 
-    const description = `Pro Subscription (${isAnnual ? "Annual" : "Monthly"} Plan)`;
+    const description = isAnnual
+      ? "Pro Annual Subscription (Share Block & Free Bookings)"
+      : "Pro Monthly Subscription";
 
-    // Initialize Yoco checkout flow with "subscription" metadata and consentAuditId
+    // Initialize Yoco checkout flow with "subscription" metadata and optional consentAuditId
     const redirectUrl = await createCheckout({
       amountInCents: resolvedAmountInCents,
       description,
@@ -76,12 +83,12 @@ export async function POST(request: NextRequest) {
         userId,
         plan: "pro",
         billingInterval: isAnnual ? "annual" : "monthly",
-        consentAuditId: auditRecord.id,
+        ...(consentAuditId ? { consentAuditId } : {}),
       },
       siteUrl,
     });
 
-    return NextResponse.json({ success: true, redirectUrl, consentAuditId: auditRecord.id });
+    return NextResponse.json({ success: true, redirectUrl, consentAuditId });
   } catch (err: unknown) {
     console.error("Subscription checkout error:", err);
     const message = err instanceof Error ? err.message : "An error occurred";

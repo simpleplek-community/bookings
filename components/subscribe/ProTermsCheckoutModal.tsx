@@ -18,16 +18,14 @@ import { ExternalLink, ShieldCheck, Loader2 } from "lucide-react";
 interface ProTermsCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  plan: "monthly" | "annual" | null;
   isProcessing: boolean;
   isMockBypass?: boolean;
-  onConfirm: (plan: "monthly" | "annual") => Promise<void>;
+  onConfirm: () => Promise<void>;
 }
 
 export function ProTermsCheckoutModal({
   isOpen,
   onClose,
-  plan,
   isProcessing,
   isMockBypass = false,
   onConfirm,
@@ -39,15 +37,11 @@ export function ProTermsCheckoutModal({
     onClose();
   };
 
-  if (!plan) return null;
-
-  const isAnnual = plan === "annual";
-  const planName = isAnnual ? "Pro Annual" : "Pro Monthly";
-  const priceDisplay = isAnnual ? "R 150 / year" : "R 15 / month";
+  if (!isOpen) return null;
 
   const handleConfirm = async () => {
     if (!hasAcknowledged || isProcessing) return;
-    await onConfirm(plan);
+    await onConfirm();
   };
 
   return (
@@ -57,8 +51,8 @@ export function ProTermsCheckoutModal({
         <div className="p-6 pb-4 border-b bg-muted/20">
           <DialogHeader className="gap-2">
             <div className="flex items-center justify-between">
-              <Badge variant={isAnnual ? "default" : "secondary"} className="text-xs font-semibold">
-                Pro Membership Terms ({priceDisplay})
+              <Badge variant="default" className="text-xs font-semibold">
+                Pro Annual Membership (R 150 / year)
               </Badge>
             </div>
             <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
@@ -80,7 +74,7 @@ export function ProTermsCheckoutModal({
               <li className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3">
                 <span className="font-semibold text-foreground shrink-0">•</span>
                 <span>
-                  <strong>25-Year Capital Allocation:</strong> Monthly payments are split between operational levies and capital contributions toward property equity.
+                  <strong>25-Year Capital Allocation:</strong> Annual subscription payments are split between operational levies and capital contributions toward property equity.
                 </span>
               </li>
               <li className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3">
@@ -104,7 +98,7 @@ export function ProTermsCheckoutModal({
               <li className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3">
                 <span className="font-semibold text-foreground shrink-0">•</span>
                 <span>
-                  <strong>Default:</strong> Missing 3 consecutive monthly payments results in default and property interest reversion to the entity.
+                  <strong>Default:</strong> Missing payments or defaulting on your Pro agreement results in property interest reversion to the entity.
                 </span>
               </li>
             </ul>
@@ -175,8 +169,8 @@ export function ProTermsCheckoutModal({
               {isProcessing
                 ? "Connecting..."
                 : isMockBypass
-                ? `Confirm & Activate ${planName}`
-                : `Confirm & Pay ${priceDisplay}`}
+                ? "Confirm & Activate Pro Annual"
+                : "Confirm & Pay R 150 / year"}
             </Button>
           </div>
         </DialogFooter>

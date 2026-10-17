@@ -14,31 +14,106 @@ import { ProTermsCheckoutModal } from "@/components/subscribe/ProTermsCheckoutMo
 function SubscribeContent() {
   const { user, loading } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [activePlan, setActivePlan] = useState<"monthly" | "annual" | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Modal checkout flow states
-  const [checkoutModalPlan, setCheckoutModalPlan] = useState<"monthly" | "annual" | null>(null);
+  // Pro Annual Share Block modal states
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isMockBypassMode, setIsMockBypassMode] = useState(false);
 
-  const initiateSubscribe = (plan: "monthly" | "annual", isMock = false) => {
-    if (!user) {
-      setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
-      return;
-    }
-    setCheckoutModalPlan(plan);
-    setIsMockBypassMode(isMock);
-    setIsCheckoutModalOpen(true);
-    setStatusMessage(null);
-  };
-
-  const handleConfirmSubscription = async (plan: "monthly" | "annual") => {
+  // Direct checkout for Standard / Monthly Plan (no Share Block required)
+  const handleSubscribeMonthly = async () => {
     if (!user) {
       setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
       return;
     }
 
     setIsRedirecting(true);
+    setActivePlan("monthly");
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch("/api/subscribe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.uid,
+          plan: "monthly",
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || "Failed to create checkout transaction.");
+      }
+
+      window.location.href = result.redirectUrl;
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : "An error occurred.";
+      setStatusMessage({ type: "error", text: message });
+      setIsRedirecting(false);
+      setActivePlan(null);
+    }
+  };
+
+  // Direct Dev Bypass for Monthly Plan
+  const handleDirectBypassMonthly = async () => {
+    if (!user) return;
+    setIsRedirecting(true);
+    setActivePlan("monthly");
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch("/api/subscribe/mock-confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.uid,
+          plan: "pro",
+          billingInterval: "monthly",
+        }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setStatusMessage({
+          type: "success",
+          text: "Success! Promoted to Pro (Monthly Plan). Reloading session...",
+        });
+        setTimeout(() => {
+          window.location.href = "/admin/properties";
+        }, 1500);
+      } else {
+        throw new Error(result.error || "Mock promotion failed");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bypass failed";
+      setStatusMessage({ type: "error", text: message });
+      setIsRedirecting(false);
+      setActivePlan(null);
+    }
+  };
+
+  // Open Share Block Modal for Pro Annual Plan
+  const initiateAnnualSubscribe = (isMock = false) => {
+    if (!user) {
+      setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
+      return;
+    }
+    setIsMockBypassMode(isMock);
+    setIsCheckoutModalOpen(true);
+    setStatusMessage(null);
+  };
+
+  // Confirm Pro Annual (Share Block Explicit Consent & Checkout)
+  const handleConfirmAnnualSubscription = async () => {
+    if (!user) {
+      setStatusMessage({ type: "error", text: "Please sign in or sign up to subscribe." });
+      return;
+    }
+
+    setIsRedirecting(true);
+    setActivePlan("annual");
     setStatusMessage(null);
 
     try {
@@ -49,7 +124,7 @@ function SubscribeContent() {
           body: JSON.stringify({
             userId: user.uid,
             plan: "pro",
-            billingInterval: plan,
+            billingInterval: "annual",
             consentAcknowledged: true,
           }),
         });
@@ -58,7 +133,7 @@ function SubscribeContent() {
           setIsCheckoutModalOpen(false);
           setStatusMessage({
             type: "success",
-            text: `Success! Audit log recorded (${result.consentAuditId || "saved"}). Promoted to Pro (${plan === "monthly" ? "Monthly Plan" : "Annual Plan"}). Reloading session...`,
+            text: `Success! Share Block consent audit logged (${result.consentAuditId || "saved"}). Promoted to Pro Annual. Reloading session...`,
           });
           setTimeout(() => {
             window.location.href = "/admin/properties";
@@ -72,7 +147,7 @@ function SubscribeContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: user.uid,
-            plan,
+            plan: "annual",
             consentAcknowledged: true,
           }),
         });
@@ -82,7 +157,6 @@ function SubscribeContent() {
           throw new Error(result.error || "Failed to create checkout transaction.");
         }
 
-        // Redirect to Yoco Checkout page
         window.location.href = result.redirectUrl;
       }
     } catch (err) {
@@ -90,6 +164,7 @@ function SubscribeContent() {
       const message = err instanceof Error ? err.message : "An error occurred.";
       setStatusMessage({ type: "error", text: message });
       setIsRedirecting(false);
+      setActivePlan(null);
     }
   };
 
@@ -140,7 +215,7 @@ function SubscribeContent() {
               <CardContent className="space-y-3">
                 <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 text-xs text-primary flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 shrink-0" />
-                  <span>Share Block / Leasehold Terms explicit consent verified on audit record.</span>
+                  <span>Pro Membership active. Full listing and host privileges unlocked.</span>
                 </div>
                 <Link
                   href="/admin/properties"
@@ -161,7 +236,7 @@ function SubscribeContent() {
           <div className="space-y-12">
             {/* Plan Cards Grid */}
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 max-w-4xl mx-auto items-stretch">
-              {/* Monthly Plan */}
+              {/* Monthly Plan (Standard Access - No Share Block) */}
               <Card className="flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -170,7 +245,7 @@ function SubscribeContent() {
                       <CardTitle>Pro Monthly</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Flexible month-to-month access to all Pro features with 25-yr capital accrual.</CardDescription>
+                  <CardDescription>Flexible month-to-month access to all Pro features with discounted booking fees.</CardDescription>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">R 15</span>
                     <span className="text-sm text-muted-foreground">/ month</span>
@@ -194,21 +269,15 @@ function SubscribeContent() {
                 </CardContent>
                 <CardFooter className="flex flex-col items-start gap-3">
                   {user ? (
-                    <>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Scale className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span>Subject to Share Block &amp; Capital Terms</span>
-                      </div>
-                      <Button
-                        onClick={() => initiateSubscribe("monthly")}
-                        disabled={isRedirecting}
-                        className="w-full cursor-pointer"
-                      >
-                        {isRedirecting && checkoutModalPlan === "monthly"
-                          ? "Connecting..."
-                          : "Review Terms & Subscribe"}
-                      </Button>
-                    </>
+                    <Button
+                      onClick={handleSubscribeMonthly}
+                      disabled={isRedirecting}
+                      className="w-full cursor-pointer"
+                    >
+                      {isRedirecting && activePlan === "monthly"
+                        ? "Connecting..."
+                        : "Subscribe Monthly"}
+                    </Button>
                   ) : (
                     <Link href="/login" className="w-full">
                       <Button variant="outline" className="w-full">Sign In to Subscribe</Button>
@@ -217,7 +286,7 @@ function SubscribeContent() {
                 </CardFooter>
               </Card>
 
-              {/* Annual Plan (Recommended) */}
+              {/* Annual Plan (Pro Membership - Share Block / Leasehold Acquisition) */}
               <Card className="flex flex-col relative border-primary/50 md:ring-1 md:ring-primary/20">
                 <div className="absolute top-3 right-4">
                   <Badge className="bg-primary text-primary-foreground font-semibold">Save R30 + Free Bookings</Badge>
@@ -229,7 +298,7 @@ function SubscribeContent() {
                       <CardTitle>Pro Annual</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Best value plan with zero booking fees (Free R0) and full Pro capabilities.</CardDescription>
+                  <CardDescription>Best value plan with zero booking fees (Free R0), full Pro capabilities, and Share Block capital allocation.</CardDescription>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">R 150</span>
                     <span className="text-sm text-muted-foreground">/ year</span>
@@ -261,11 +330,11 @@ function SubscribeContent() {
                         <span>Subject to Share Block &amp; Capital Terms</span>
                       </div>
                       <Button
-                        onClick={() => initiateSubscribe("annual")}
+                        onClick={() => initiateAnnualSubscribe(false)}
                         disabled={isRedirecting}
                         className="w-full cursor-pointer"
                       >
-                        {isRedirecting && checkoutModalPlan === "annual"
+                        {isRedirecting && activePlan === "annual"
                           ? "Connecting..."
                           : "Review Terms & Subscribe"}
                       </Button>
@@ -324,14 +393,14 @@ function SubscribeContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => initiateSubscribe("monthly", true)}
+                    onClick={handleDirectBypassMonthly}
                     disabled={isRedirecting}
                   >
                     Bypass as Pro Monthly
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => initiateSubscribe("annual", true)}
+                    onClick={() => initiateAnnualSubscribe(true)}
                     disabled={isRedirecting}
                   >
                     Bypass as Pro Annual
@@ -342,15 +411,13 @@ function SubscribeContent() {
           </div>
         )}
 
-        {/* Dedicated Checkout / Terms Review Modal */}
+        {/* Dedicated Checkout / Terms Review Modal (Only displayed for Pro Annual Share Block) */}
         <ProTermsCheckoutModal
-          key={checkoutModalPlan || "none"}
           isOpen={isCheckoutModalOpen}
           onClose={() => setIsCheckoutModalOpen(false)}
-          plan={checkoutModalPlan}
           isProcessing={isRedirecting}
           isMockBypass={isMockBypassMode}
-          onConfirm={handleConfirmSubscription}
+          onConfirm={handleConfirmAnnualSubscription}
         />
       </div>
     </div>
