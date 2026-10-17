@@ -42,6 +42,33 @@ export interface PricingProperty {
   mandatoryRules?: PricingRule[];
 }
 
+export type MembershipTier = "standard" | "pro_monthly" | "pro_annual";
+
+export const STANDARD_STAY_FEES: Record<MembershipTier, number> = {
+  standard: 50,
+  pro_monthly: 25,
+  pro_annual: 0,
+};
+
+export function resolveMembershipTier(options?: {
+  plan?: string | null;
+  billingInterval?: string | null;
+  isAdmin?: boolean;
+}): MembershipTier {
+  if (!options) return "standard";
+  const { plan, billingInterval, isAdmin } = options;
+  if (isAdmin) return "pro_annual";
+  if (plan === "pro") {
+    if (billingInterval === "monthly") return "pro_monthly";
+    return "pro_annual";
+  }
+  return "standard";
+}
+
+export function standardStayFeeFor(tier?: MembershipTier): number {
+  return STANDARD_STAY_FEES[tier || "standard"] ?? STANDARD_STAY_FEES.standard;
+}
+
 export interface PricingPackage {
   id: string;
   price: number;
@@ -61,7 +88,11 @@ export interface StayQuote {
   /** baseCost − discountAmount. */
   stayCost: number;
   packagePrice: number;
-  /** stayCost + packagePrice, rounded to cents. */
+  /** Fee applied when booking a standard stay/slot (no package added). */
+  standardFee: number;
+  /** The membership tier used to calculate the standard fee. */
+  tier: MembershipTier;
+  /** stayCost + packagePrice + standardFee, rounded to cents. */
   total: number;
 }
 
@@ -147,7 +178,8 @@ export function quoteStay(
   property: PricingProperty,
   fromDate: Date | string,
   toDate: Date | string,
-  pkg?: Pick<PricingPackage, "price"> | null
+  pkg?: Pick<PricingPackage, "price"> | null,
+  tier: MembershipTier = "standard"
 ): StayQuote {
   const isHourly = isHourlyProperty(property);
   const units = stayUnits(property, fromDate, toDate);
@@ -169,7 +201,8 @@ export function quoteStay(
   const discountAmount = baseCost * (discountPercent / 100);
   const stayCost = baseCost - discountAmount;
   const packagePrice = pkg ? Number(pkg.price) || 0 : 0;
-  const total = Math.round((stayCost + packagePrice) * 100) / 100;
+  const standardFee = pkg ? 0 : standardStayFeeFor(tier);
+  const total = Math.round((stayCost + packagePrice + standardFee) * 100) / 100;
 
-  return { isHourly, units, baseCost, discountKind, discountPercent, discountAmount, stayCost, packagePrice, total };
+  return { isHourly, units, baseCost, discountKind, discountPercent, discountAmount, stayCost, packagePrice, standardFee, tier, total };
 }

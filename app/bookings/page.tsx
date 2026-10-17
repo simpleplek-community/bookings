@@ -46,7 +46,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { MandatoryRule } from "@/lib/types";
-import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
+import { mandatoryPackageIdsFor, quoteStay, resolveMembershipTier, standardStayFeeFor, type MembershipTier } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -109,6 +109,7 @@ function BookingsCheckoutContent() {
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
   const [isProUser, setIsProUser] = useState<boolean>(false);
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>("standard");
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -131,14 +132,15 @@ function BookingsCheckoutContent() {
   const selectedPackage = packages.find((p) => p.id === selectedPackageId);
 
   // Same calculation the API uses to store and charge the total.
-  const quote = quoteStay(property ?? { basePricePerNight }, from, to, selectedPackage);
+  const quote = quoteStay(property ?? { basePricePerNight }, from, to, selectedPackage, membershipTier);
   const isHourly = quote.isHourly;
   const nights = savedDates ? quote.units : 0;
   const discountAmount = savedDates ? quote.discountAmount : 0;
   const weeklyDiscount = property?.weeklyDiscount ?? 0;
   const monthlyDiscount = property?.monthlyDiscount ?? 0;
   const packagePrice = quote.packagePrice;
-  const finalTotal = savedDates ? quote.total : packagePrice;
+  const standardFee = quote.standardFee;
+  const finalTotal = savedDates ? quote.total : (selectedPackage ? packagePrice : standardFee);
 
   const mandatoryPackageIds = React.useMemo(
     () => mandatoryPackageIdsFor(property, nights),
@@ -276,7 +278,9 @@ function BookingsCheckoutContent() {
         if (profileResult.success && profileResult.data) {
           const plan = profileResult.data.plan;
           const isAdmin = profileResult.data.isAdmin;
+          const billingInterval = profileResult.data.billingInterval;
           setIsProUser(plan === "pro" || Boolean(isAdmin));
+          setMembershipTier(resolveMembershipTier({ plan, billingInterval, isAdmin: Boolean(isAdmin) }));
         }
       } catch (err) {
         console.error("Failed to retrieve user dates or estimate:", err);
@@ -1072,13 +1076,30 @@ function BookingsCheckoutContent() {
                   <div className="flex flex-1 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-heading text-sm font-medium">Standard stay</span>
+                      {membershipTier === "pro_annual" && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Pro Annual: Free
+                        </span>
+                      )}
+                      {membershipTier === "pro_monthly" && (
+                        <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                          Pro Monthly: R25 (50% off)
+                        </span>
+                      )}
+                      {membershipTier === "standard" && (
+                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground border">
+                          Standard fee: R50
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm leading-relaxed text-muted-foreground">
                       Standard booking with base amenities included. No additional package added.
                     </p>
                   </div>
 
-                  <span className="mt-0.5 shrink-0 font-heading text-sm font-semibold">R 0</span>
+                  <span className={`mt-0.5 shrink-0 font-heading text-sm font-semibold ${standardStayFeeFor(membershipTier) === 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                    {standardStayFeeFor(membershipTier) === 0 ? "Free (R 0)" : `R ${standardStayFeeFor(membershipTier)}`}
+                  </span>
                 </button>
 
                 {/* Dynamic Stay Package Tiles - Available for this user */}
@@ -1228,17 +1249,34 @@ function BookingsCheckoutContent() {
                 </div>
               )}
 
-              {selectedPackage && (
-                <>
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="text-muted-foreground">
-                      Package cost ({selectedPackage.name})
-                    </span>
-                    <span className="font-medium tabular-nums">
-                      R {packagePrice.toLocaleString()}
-                    </span>
-                  </div>
-                </>
+              {selectedPackage ? (
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">
+                    Package cost ({selectedPackage.name})
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    R {packagePrice.toLocaleString()}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    Standard booking fee
+                    {membershipTier === "pro_annual" && (
+                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        Pro Annual (Free)
+                      </span>
+                    )}
+                    {membershipTier === "pro_monthly" && (
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                        Pro Monthly (50% off)
+                      </span>
+                    )}
+                  </span>
+                  <span className={`font-medium tabular-nums ${standardFee === 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                    {standardFee === 0 ? "Free (R 0)" : `R ${standardFee.toLocaleString()}`}
+                  </span>
+                </div>
               )}
 
               <Separator />

@@ -59,7 +59,7 @@ interface Estimate {
 }
 
 import { MandatoryRule } from "@/lib/types";
-import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
+import { mandatoryPackageIdsFor, quoteStay, resolveMembershipTier, standardStayFeeFor, type MembershipTier } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -104,6 +104,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   const [isUpdatingPackage, setIsUpdatingPackage] = useState(false);
   const [packageError, setPackageError] = useState<string | null>(null);
   const [isProUser, setIsProUser] = useState<boolean>(false);
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>("standard");
 
   const [hasUserPaid, setHasUserPaid] = useState(false);
   const [isLoadingPaymentStatus, setIsLoadingPaymentStatus] = useState(true);
@@ -115,6 +116,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     if (authLoading) return;
     if (!user) {
       setIsProUser(false);
+      setMembershipTier("standard");
       return;
     }
     const fetchProfile = async () => {
@@ -122,7 +124,11 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
         const res = await fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`);
         const result = await res.json();
         if (result.success && result.data) {
-          setIsProUser(result.data.plan === "pro" || Boolean(result.data.isAdmin));
+          const plan = result.data.plan;
+          const isAdmin = Boolean(result.data.isAdmin);
+          const billingInterval = result.data.billingInterval;
+          setIsProUser(plan === "pro" || isAdmin);
+          setMembershipTier(resolveMembershipTier({ plan, billingInterval, isAdmin }));
         }
       } catch (err) {
         console.error("Failed to load user profile in estimate client:", err);
@@ -138,7 +144,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   const currentSelectedPackage = packages.find(p => p.id === selectedPackageId) || (selectedPackageId === estimate.packageId ? selectedPackage : null);
 
   // Same calculation the API uses to store and charge the total.
-  const quote = quoteStay(property ?? { basePricePerNight }, from, to, currentSelectedPackage);
+  const quote = quoteStay(property ?? { basePricePerNight }, from, to, currentSelectedPackage, membershipTier);
   const isHourly = quote.isHourly;
   const nights = quote.units;
   const isPaid = isHourly
@@ -149,6 +155,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   const monthlyDiscount = property?.monthlyDiscount ?? 0;
   const discountAmount = quote.discountAmount;
   const packagePrice = quote.packagePrice;
+  const standardFee = quote.standardFee;
   const finalTotal = quote.total;
 
   const isPackagePro = (p: Package) => Boolean(p.isPro || p.category === "pro");
@@ -598,13 +605,30 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                     <span className="font-heading text-sm font-medium">
                       {isHourly ? "Standard slot" : "Standard stay"}
                     </span>
+                    {membershipTier === "pro_annual" && (
+                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        Pro Annual: Free
+                      </span>
+                    )}
+                    {membershipTier === "pro_monthly" && (
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        Pro Monthly: R25 (50% off)
+                      </span>
+                    )}
+                    {membershipTier === "standard" && (
+                      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground border">
+                        Standard fee: R50
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     Standard booking with base amenities included. No additional package added.
                   </p>
                 </div>
 
-                <span className="mt-0.5 shrink-0 font-heading text-sm font-semibold">R 0</span>
+                <span className={`mt-0.5 shrink-0 font-heading text-sm font-semibold ${standardStayFeeFor(membershipTier) === 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                  {standardStayFeeFor(membershipTier) === 0 ? "Free (R 0)" : `R ${standardStayFeeFor(membershipTier)}`}
+                </span>
               </button>
 
               {availablePackages.map((pkg) => {
@@ -863,12 +887,31 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                   <span>-R {Math.round(discountAmount).toLocaleString()}</span>
                 </div>
               )}
-              {currentSelectedPackage && (
+              {currentSelectedPackage ? (
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">
                     Package cost ({currentSelectedPackage.name})
                   </span>
                   <span className="font-medium">R {packagePrice.toLocaleString()}</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    Standard booking fee
+                    {membershipTier === "pro_annual" && (
+                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        Pro Annual (Free)
+                      </span>
+                    )}
+                    {membershipTier === "pro_monthly" && (
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                        Pro Monthly (50% off)
+                      </span>
+                    )}
+                  </span>
+                  <span className={`font-medium ${standardFee === 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                    {standardFee === 0 ? "Free (R 0)" : `R ${standardFee.toLocaleString()}`}
+                  </span>
                 </div>
               )}
 

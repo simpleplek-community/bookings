@@ -5,7 +5,7 @@ import { formatDisplayDate } from "@/lib/utils";
 import { useAuth } from "@/components/auth";
 
 import { MandatoryRule } from "@/lib/types";
-import { mandatoryPackageIdsFor, quoteStay } from "@/lib/pricing";
+import { mandatoryPackageIdsFor, quoteStay, resolveMembershipTier, type MembershipTier } from "@/lib/pricing";
 
 interface Property {
   id: string;
@@ -43,6 +43,7 @@ export default function SmartEstimateBlock({
 }: SmartEstimateBlockProps) {
   const { user, loading: authLoading } = useAuth();
   const [isProUser, setIsProUser] = useState<boolean>(false);
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>("standard");
   const [bookingMode, setBookingMode] = useState<"predefined" | "custom">("predefined");
 
   // Dynamic Packages States
@@ -55,6 +56,7 @@ export default function SmartEstimateBlock({
     if (authLoading) return;
     if (!user) {
       setIsProUser(false);
+      setMembershipTier("standard");
       return;
     }
     const fetchProfile = async () => {
@@ -62,7 +64,11 @@ export default function SmartEstimateBlock({
         const res = await fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`);
         const result = await res.json();
         if (result.success && result.data) {
-          setIsProUser(result.data.plan === "pro" || Boolean(result.data.isAdmin));
+          const plan = result.data.plan;
+          const isAdmin = Boolean(result.data.isAdmin);
+          const billingInterval = result.data.billingInterval;
+          setIsProUser(plan === "pro" || isAdmin);
+          setMembershipTier(resolveMembershipTier({ plan, billingInterval, isAdmin }));
         }
       } catch (err) {
         console.error("Failed to load user profile in SmartEstimateBlock:", err);
@@ -161,7 +167,7 @@ export default function SmartEstimateBlock({
 
   // Calculate nights and pricing
   const basePricePerNight = selectedProperty ? selectedProperty.basePricePerNight : 1500;
-  const stayQuote = quoteStay(selectedProperty ?? { basePricePerNight }, customFromDate, customToDate);
+  const stayQuote = quoteStay(selectedProperty ?? { basePricePerNight }, customFromDate, customToDate, null, membershipTier);
   const isHourly = stayQuote.isHourly;
   const nights = stayQuote.units;
 
@@ -217,7 +223,8 @@ export default function SmartEstimateBlock({
     selectedProperty ?? { basePricePerNight },
     customFromDate,
     customToDate,
-    bookingMode === "predefined" ? selectedPackage : null
+    bookingMode === "predefined" ? selectedPackage : null,
+    membershipTier
   ).total;
 
   const handleBookAndPay = async () => {

@@ -1,6 +1,15 @@
 import { getPackage, getUserProfile, isUserAdmin } from "./firebase";
 import { ownsProperty, type SessionUser } from "./auth";
-import { isAddonPackage, isProPackage, quoteStay, resolveStayPackageId, stayUnits, type StayQuote } from "./pricing";
+import {
+  isAddonPackage,
+  isProPackage,
+  quoteStay,
+  resolveMembershipTier,
+  resolveStayPackageId,
+  stayUnits,
+  type MembershipTier,
+  type StayQuote,
+} from "./pricing";
 
 export type StayQuoteResult =
   | { ok: true; quote: StayQuote; packageId: string | null }
@@ -57,5 +66,20 @@ export async function quoteStayForRequest(
     }
   }
 
-  return { ok: true, quote: quoteStay(property, fromDate, toDate, pkg), packageId };
+  let tier: MembershipTier = "standard";
+  if (session) {
+    const profile = await getUserProfile(session.uid);
+    const isAdmin = Boolean(
+      session.isSuperAdmin ||
+      ownsProperty(session, property) ||
+      (await isUserAdmin(session.uid, session.email, session.emailVerified))
+    );
+    tier = resolveMembershipTier({
+      plan: profile?.plan,
+      billingInterval: profile?.billingInterval,
+      isAdmin,
+    });
+  }
+
+  return { ok: true, quote: quoteStay(property, fromDate, toDate, pkg, tier), packageId };
 }

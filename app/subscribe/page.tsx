@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Scale, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Scale, ShieldCheck, Sparkles } from "lucide-react";
 import { ProTermsCheckoutModal } from "@/components/subscribe/ProTermsCheckoutModal";
 
 function SubscribeContent() {
@@ -179,7 +179,12 @@ function SubscribeContent() {
                 <CardContent className="flex-1">
                   <Separator className="mb-6" />
                   <ul className="space-y-3">
-                    {["Access & create exclusive Pro-only packages", "Airbnb / Google Calendar sync", "Unlimited property listings & custom deals"].map((feature) => (
+                    {[
+                      "Discounted booking fee (R25 vs R50 standard)",
+                      "Access & create exclusive Pro-only packages",
+                      "Airbnb / Google Calendar sync",
+                      "Unlimited property listings & custom deals",
+                    ].map((feature) => (
                       <li key={feature} className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="size-4 mt-0.5 shrink-0 text-primary" />
                         <span>{feature}</span>
@@ -215,7 +220,7 @@ function SubscribeContent() {
               {/* Annual Plan (Recommended) */}
               <Card className="flex flex-col relative border-primary/50 md:ring-1 md:ring-primary/20">
                 <div className="absolute top-3 right-4">
-                  <Badge>Save R30</Badge>
+                  <Badge className="bg-primary text-primary-foreground font-semibold">Save R30 + Free Bookings</Badge>
                 </div>
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -224,7 +229,7 @@ function SubscribeContent() {
                       <CardTitle>Pro Annual</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Best value plan for serious hosts with year-round capabilities and capital allocation.</CardDescription>
+                  <CardDescription>Best value plan with zero booking fees (Free R0) and full Pro capabilities.</CardDescription>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">R 150</span>
                     <span className="text-sm text-muted-foreground">/ year</span>
@@ -234,7 +239,13 @@ function SubscribeContent() {
                 <CardContent className="flex-1">
                   <Separator className="mb-6" />
                   <ul className="space-y-3">
-                    {["Access & create exclusive Pro-only packages", "Airbnb / Google Calendar sync", "Unlimited property listings & custom deals", "Priority features & promotional packages"].map((feature) => (
+                    {[
+                      "100% Free booking fees (R0 on all stays & estimates)",
+                      "Access & create exclusive Pro-only packages",
+                      "Airbnb / Google Calendar sync",
+                      "Unlimited property listings & custom deals",
+                      "Priority features & promotional packages",
+                    ].map((feature) => (
                       <li key={feature} className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="size-4 mt-0.5 shrink-0 text-primary" />
                         <span>{feature}</span>
@@ -266,6 +277,38 @@ function SubscribeContent() {
                   )}
                 </CardFooter>
               </Card>
+            </div>
+
+            {/* Booking Fee Differentiation Comparison Banner */}
+            <div className="mx-auto max-w-4xl rounded-2xl border bg-gradient-to-br from-card via-card to-muted/40 p-6 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-5 text-primary" />
+                    <h3 className="font-heading text-lg font-semibold tracking-tight">Booking Fee Comparison</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Save on every stay or estimate. Pro Annual members pay zero booking fees.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center sm:gap-4 shrink-0">
+                  <div className="rounded-xl border bg-background/80 p-3">
+                    <div className="text-xs font-medium text-muted-foreground">Standard</div>
+                    <div className="mt-1 font-heading text-lg font-bold">R 50</div>
+                    <div className="text-[11px] text-muted-foreground">per booking</div>
+                  </div>
+                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
+                    <div className="text-xs font-medium text-blue-600 dark:text-blue-400">Pro Monthly</div>
+                    <div className="mt-1 font-heading text-lg font-bold text-blue-600 dark:text-blue-400">R 25</div>
+                    <div className="text-[11px] text-blue-600/80 dark:text-blue-400/80">50% discount</div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 ring-1 ring-emerald-500/20">
+                    <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Pro Annual</div>
+                    <div className="mt-1 font-heading text-lg font-bold text-emerald-600 dark:text-emerald-400">R 0</div>
+                    <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">100% Free</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Local Developer Bypass block */}
