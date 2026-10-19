@@ -4,6 +4,8 @@ export interface SessionUser {
   uid: string;
   email: string | null;
   emailVerified: boolean;
+  /** Display name from the verified identity, if the account has one. */
+  name: string | null;
   isSuperAdmin: boolean;
 }
 
@@ -26,6 +28,7 @@ export async function getSessionUser(request: Request): Promise<SessionUser | nu
       uid: decoded.uid,
       email,
       emailVerified,
+      name: decoded.name ? String(decoded.name) : null,
       isSuperAdmin: isSuperAdmin(email, emailVerified),
     };
   } catch {
@@ -46,17 +49,60 @@ export function ownsProperty(user: SessionUser | null, property: { hostId?: stri
   return Boolean(user.emailVerified && user.email && user.email === hostId);
 }
 
-/** Whether the session user is the customer or a joined guest on a booking/estimate. */
-export function isPartyTo(
-  user: SessionUser | null,
-  record: { customerId?: string; customerEmail?: string; guests?: string[] } | null
-): boolean {
+type PartyRecord = { customerId?: string; customerEmail?: string; guests?: string[] };
+
+/** Whether the session user is the customer who created a booking/estimate. */
+export function isCustomerOf(user: SessionUser | null, record: PartyRecord | null): boolean {
   if (!user || !record) return false;
   if (record.customerId && record.customerId === user.uid) return true;
-  if (Array.isArray(record.guests) && record.guests.includes(user.uid)) return true;
   return Boolean(
     user.emailVerified && user.email && record.customerEmail && record.customerEmail.toLowerCase() === user.email
   );
+}
+
+/** Whether the session user is the customer or a joined guest on a booking/estimate. */
+export function isPartyTo(user: SessionUser | null, record: PartyRecord | null): boolean {
+  if (!user || !record) return false;
+  if (Array.isArray(record.guests) && record.guests.includes(user.uid)) return true;
+  return isCustomerOf(user, record);
+}
+
+export type ViewerRole = "admin" | "host" | "customer" | "guest";
+
+/**
+ * The caller's role on a booking/estimate, or null when they have no access.
+ * Admins, the property host and the customer manage the stay (invite link, guest list);
+ * joined guests get a read-only view.
+ */
+export function viewerRoleFor(
+  user: SessionUser | null,
+  record: PartyRecord | null,
+  property: { hostId?: string } | null
+): ViewerRole | null {
+  if (!user || !record) return null;
+  if (user.isSuperAdmin) return "admin";
+  if (isCustomerOf(user, record)) return "customer";
+  if (ownsProperty(user, property)) return "host";
+  if (Array.isArray(record.guests) && record.guests.includes(user.uid)) return "guest";
+  return null;
+}
+
+export function canManageStay(role: ViewerRole | null): boolean {
+  return role === "admin" || role === "host" || role === "customer";
+}
+
+/**
+ * Shapes a booking/estimate for the viewer. Managers see everything; guests never
+ * receive the invite token, the removed-guest list or other guests' emails.
+ */
+export function scopeStayForViewer<T extends Record<string, any>>(record: T, role: ViewerRole, viewerUid: string) {
+  if (canManageStay(role)) return { ...record, viewerRole: role };
+  const { token, removedGuests, guestsDetails, confirmationEmailError, ...rest } = record;
+  const details: Record<string, { name: string; joinedAt?: string; email?: string }> = {};
+  for (const [uid, d] of Object.entries((guestsDetails || {}) as Record<string, any>)) {
+    details[uid] = { name: d?.name || "", joinedAt: d?.joinedAt, ...(uid === viewerUid ? { email: d?.email || "" } : {}) };
+  }
+  return { ...rest, guestsDetails: details, viewerRole: role };
 }
 
 export function unauthorized(message = "Authentication required.") {

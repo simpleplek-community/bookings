@@ -13,6 +13,7 @@ import {
   HouseIcon,
   KeyRoundIcon,
   LinkIcon,
+  RefreshCwIcon,
   LockIcon,
   PinIcon,
   ShieldXIcon,
@@ -53,9 +54,10 @@ interface Estimate {
   toDate: string;
   total: number;
   paymentStatus: string;
-  token: string;
+  token?: string;
   guests?: string[];
-  guestsDetails?: Record<string, { name: string; email: string }>;
+  guestsDetails?: Record<string, { name: string; email?: string; joinedAt?: string }>;
+  viewerRole?: "admin" | "host" | "customer" | "guest";
 }
 
 import { MandatoryRule } from "@/lib/types";
@@ -93,9 +95,17 @@ interface EstimateClientProps {
   selectedPackage: Package | null;
 }
 
-function EstimateClientContent({ estimate, property, selectedPackage }: EstimateClientProps) {
+function EstimateClientContent({ estimate: initialEstimate, property, selectedPackage }: EstimateClientProps) {
   const { user, loading: authLoading } = useAuth();
+  // The server-rendered estimate has no token or contact details; the viewer's scoped
+  // copy (with their role) is loaded from the API once they are signed in.
+  const [estimate, setEstimate] = useState<Estimate>(initialEstimate);
+  const [access, setAccess] = useState<"loading" | "granted" | "denied">("loading");
   const [copied, setCopied] = useState(false);
+  const [isRefreshingLink, setIsRefreshingLink] = useState(false);
+  const [linkRefreshed, setLinkRefreshed] = useState(false);
+  const [removingGuestId, setRemovingGuestId] = useState<string>("");
+  const [guestError, setGuestError] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
@@ -111,6 +121,36 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
 
   const [latestEstimate, setLatestEstimate] = useState<any | null>(null);
   const [latestEstimatePropertyTitle, setLatestEstimatePropertyTitle] = useState<string>("");
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setAccess("denied");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/estimates/${initialEstimate.id}`);
+        const result = await res.json();
+        if (cancelled) return;
+        if (res.ok && result.success && result.data) {
+          setEstimate(result.data);
+          setAccess("granted");
+        } else {
+          setAccess("denied");
+        }
+      } catch (err) {
+        console.error("Failed to load estimate access:", err);
+        if (!cancelled) setAccess("denied");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authLoading, initialEstimate.id]);
+
+  const canManage = estimate.viewerRole === "customer" || estimate.viewerRole === "host" || estimate.viewerRole === "admin";
 
   useEffect(() => {
     if (authLoading) return;
@@ -163,6 +203,8 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   const proPackages = packages.filter((p) => isPackagePro(p));
 
   const handlePackageChange = async (packageId: string) => {
+    // Guests have a read-only view; only the organiser, host or an admin may change the package.
+    if (!canManage) return;
     if (packageId) {
       const activePkg = packages.find((p) => p.id === packageId);
       if (activePkg && isPackagePro(activePkg) && !isProUser) {
@@ -190,8 +232,11 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
         throw new Error(result.error || "Failed to update package option in database.");
       }
 
-      estimate.total = result.estimate?.total ?? estimate.total;
-      estimate.packageId = result.estimate?.packageId ?? (packageId || null);
+      setEstimate((prev) => ({
+        ...prev,
+        total: result.estimate?.total ?? prev.total,
+        packageId: result.estimate?.packageId ?? (packageId || null),
+      }));
     } catch (err: any) {
       setPackageError(err?.message || "Failed to update the selected package.");
     } finally {
@@ -215,6 +260,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
   }, [mandatoryPackageIds, packages, isProUser]);
 
   useEffect(() => {
+    if (!canManage) return;
     if (hasMandatoryRule) {
       if (userAllowedMandatoryIds.length > 0) {
         if (!userAllowedMandatoryIds.includes(selectedPackageId)) {
@@ -236,7 +282,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
         }
       }
     }
-  }, [hasMandatoryRule, mandatoryPackageIds, userAllowedMandatoryIds, selectedPackageId, packages, isProUser]);
+  }, [canManage, hasMandatoryRule, mandatoryPackageIds, userAllowedMandatoryIds, selectedPackageId, packages, isProUser]);
 
   // Fetch packages for the property
   useEffect(() => {
@@ -312,9 +358,47 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     fetchLatestEstimate();
   }, [user]);
 
-  // Copy share url helper
+  // Copy share url helper (only managers receive the token)
   const inviteUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/i/${estimate.token}` : "";
+    typeof window !== "undefined" && estimate.token ? `${window.location.origin}/i/${estimate.token}` : "";
+
+  const handleRefreshLink = async () => {
+    if (!window.confirm("Create a new invite link? The current link will stop working for anyone who hasn't joined yet.")) return;
+    setIsRefreshingLink(true);
+    setGuestError(null);
+    try {
+      const res = await fetch(`/api/estimates/${estimate.id}/invite`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || "Could not refresh the invite link.");
+      setEstimate((prev) => ({ ...prev, token: result.token }));
+      setLinkRefreshed(true);
+      setTimeout(() => setLinkRefreshed(false), 4000);
+    } catch (err: any) {
+      setGuestError(err.message || "Could not refresh the invite link.");
+    } finally {
+      setIsRefreshingLink(false);
+    }
+  };
+
+  const handleRemoveGuest = async (guestId: string, label: string) => {
+    if (!window.confirm(`Remove ${label} from this stay? They won't be able to rejoin with the invite link.`)) return;
+    setRemovingGuestId(guestId);
+    setGuestError(null);
+    try {
+      const res = await fetch(`/api/estimates/${estimate.id}/guests/${encodeURIComponent(guestId)}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || "Could not remove the guest.");
+      setEstimate((prev) => {
+        const guestsDetails = { ...(prev.guestsDetails || {}) };
+        delete guestsDetails[guestId];
+        return { ...prev, guests: (prev.guests || []).filter((g) => g !== guestId), guestsDetails };
+      });
+    } catch (err: any) {
+      setGuestError(err.message || "Could not remove the guest.");
+    } finally {
+      setRemovingGuestId("");
+    }
+  };
 
   const handleCopy = () => {
     if (inviteUrl) {
@@ -360,7 +444,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     }
   };
 
-  if (authLoading || isLoadingPaymentStatus) {
+  if (authLoading || isLoadingPaymentStatus || (user && access === "loading")) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
         <Spinner className="size-6 text-muted-foreground" />
@@ -391,21 +475,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
     );
   }
 
-  // Authorization Check
-  const isOwner =
-    user.uid === estimate.customerId ||
-    user.email?.toLowerCase() === estimate.customerEmail.toLowerCase();
-  const isGuest = estimate.guests && estimate.guests.includes(user.uid);
-  const isAdmin =
-    user.email &&
-    [
-      "thankyou.digital@gmail.com",
-      "admin@llandudnostays.co.za",
-      "jmaclachlan@gmail.com",
-      "admin@example.com",
-    ].includes(user.email.toLowerCase());
-
-  if (!isOwner && !isGuest && !isAdmin) {
+  if (access !== "granted") {
     return (
       <Empty className="mx-auto my-20 max-w-md">
         <EmptyHeader>
@@ -559,7 +629,9 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
             <CardHeader className="border-b">
               <CardTitle>Select package option</CardTitle>
               <CardDescription>
-                {isHourly
+                {!canManage
+                  ? "The organiser chooses the package for this stay."
+                  : isHourly
                   ? "Enhance your booking by choosing a curated package experience, or check out with standard options."
                   : "Enhance your stay by choosing a curated package experience, or check out with standard accommodation."}
               </CardDescription>
@@ -583,7 +655,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                 type="button"
                 role="radio"
                 aria-checked={selectedPackageId === ""}
-                disabled={isUpdatingPackage || isPaid || (hasMandatoryRule && userAllowedMandatoryIds.length > 0)}
+                disabled={!canManage || isUpdatingPackage || isPaid || (hasMandatoryRule && userAllowedMandatoryIds.length > 0)}
                 onClick={() => handlePackageChange("")}
                 className={`flex w-full items-start justify-between gap-4 rounded-lg border p-4 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-70 ${selectedPackageId === ""
                   ? "border-primary bg-primary/5"
@@ -634,7 +706,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
               {availablePackages.map((pkg) => {
                 const isSelected = selectedPackageId === pkg.id;
                 const isAllowedByRule = !hasMandatoryRule || mandatoryPackageIds.includes(pkg.id);
-                const isDisabled = isUpdatingPackage || isPaid || !isAllowedByRule;
+                const isDisabled = !canManage || isUpdatingPackage || isPaid || !isAllowedByRule;
                 const price = pkg.price || 0;
 
                 return (
@@ -741,35 +813,56 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2">
                 <UsersIcon className="size-4 text-muted-foreground" />
-                Invite guests &amp; share estimate
+                {canManage ? <>Invite guests &amp; share estimate</> : "Guests on this stay"}
               </CardTitle>
               <CardDescription>
-                Share this unique invite URL with friends or co-guests so they can view and join
-                this estimate.
+                {canManage
+                  ? "Anyone with this link can ask to join. You'll get an email when someone joins, and you can remove guests or refresh the link at any time."
+                  : `You joined this stay as a guest. ${estimate.customerName} manages the invite link and guest list.`}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <label htmlFor="invite-url" className="sr-only">
-                  Invite URL
-                </label>
-                <Input
-                  id="invite-url"
-                  type="text"
-                  readOnly
-                  value={inviteUrl}
-                  className="flex-1 font-mono text-xs"
-                />
-                <Button onClick={handleCopy} className="shrink-0">
-                  {copied ? (
-                    <CheckIcon data-icon="inline-start" />
-                  ) : (
-                    <LinkIcon data-icon="inline-start" />
-                  )}
-                  {copied ? "Copied" : "Copy link"}
-                </Button>
-              </div>
+              {guestError && (
+                <Alert variant="destructive">
+                  <TriangleAlertIcon />
+                  <AlertDescription>{guestError}</AlertDescription>
+                </Alert>
+              )}
+
+              {canManage && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="invite-url" className="sr-only">
+                      Invite URL
+                    </label>
+                    <Input
+                      id="invite-url"
+                      type="text"
+                      readOnly
+                      value={inviteUrl}
+                      className="flex-1 font-mono text-xs"
+                    />
+                    <Button onClick={handleCopy} className="shrink-0" disabled={!inviteUrl}>
+                      {copied ? (
+                        <CheckIcon data-icon="inline-start" />
+                      ) : (
+                        <LinkIcon data-icon="inline-start" />
+                      )}
+                      {copied ? "Copied" : "Copy link"}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {linkRefreshed ? "New link created. The old link no longer works." : "Shared the link with the wrong person? Refresh it."}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={handleRefreshLink} disabled={isRefreshingLink}>
+                      {isRefreshingLink ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
+                      Refresh invite link
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Guest List Roster */}
               {estimate.guests && estimate.guests.length > 0 && (
@@ -778,23 +871,38 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
                     Joined guest roster ({estimate.guests.length})
                   </span>
                   <ul className="flex flex-col gap-1.5">
-                    {estimate.guests.map((gUid, idx) => {
+                    {estimate.guests.map((gUid) => {
                       const details = estimate.guestsDetails?.[gUid];
-                      const label = details
-                        ? `${details.name} (${details.email})`
-                        : gUid === user.uid
-                          ? "You"
-                          : gUid.substring(0, 8) + "…";
+                      const name = details?.name || (gUid === user.uid ? "You" : "Guest");
+                      const label = details?.email ? `${name} (${details.email})` : name;
                       return (
                         <li
-                          key={idx}
+                          key={gUid}
                           className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
                         >
-                          <span className="flex items-center gap-2 text-sm">
+                          <span className="flex min-w-0 items-center gap-2 text-sm">
                             <UserIcon className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="font-mono text-xs">{label}</span>
+                            <span className="truncate font-mono text-xs">{label}</span>
                           </span>
-                          <Badge variant="secondary">Joined</Badge>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {details?.joinedAt && (
+                              <span className="hidden text-xs text-muted-foreground sm:inline">
+                                Joined {formatDisplayDate(details.joinedAt)}
+                              </span>
+                            )}
+                            {canManage ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveGuest(gUid, name)}
+                                disabled={removingGuestId === gUid}
+                              >
+                                {removingGuestId === gUid ? "Removing..." : "Remove"}
+                              </Button>
+                            ) : (
+                              <Badge variant="secondary">Joined</Badge>
+                            )}
+                          </span>
                         </li>
                       );
                     })}
@@ -819,7 +927,7 @@ function EstimateClientContent({ estimate, property, selectedPackage }: Estimate
 
             <CardContent className="flex flex-col gap-3">
               {/* Active Estimate Sharing Widget */}
-              {latestEstimate && latestEstimate.id === estimate.id && (
+              {canManage && latestEstimate && latestEstimate.id === estimate.id && (
                 <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 mb-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

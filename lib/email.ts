@@ -285,3 +285,152 @@ export async function sendMagicLinkEmail(email: string, magicLink: string) {
     return false;
   }
 }
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Sends one email through Resend. Returns false (and logs) instead of throwing. */
+async function sendEmail(to: string[], subject: string, html: string, context: string): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn(`[Resend] RESEND_API_KEY is not defined; skipping ${context} email to ${to.join(", ")}.`);
+    return false;
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM_ADDRESS || "Simpleplek <noreply@simpleplek.co.za>",
+        to,
+        subject,
+        html
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error(`[Resend] Failed to send ${context} email:`, data);
+      return false;
+    }
+    console.log(`[Resend] ${context} email sent to ${to.join(", ")}. ID: ${data.id}`);
+    return true;
+  } catch (error) {
+    console.error(`[Resend] Error sending ${context} email:`, error);
+    return false;
+  }
+}
+
+/** Public URL of a booking or estimate page, on the host's subdomain when they have one. */
+async function stayPageUrl(kind: "booking" | "estimate", id: string, hostId?: string): Promise<string> {
+  let subdomain: string | undefined;
+  if (hostId) {
+    try {
+      subdomain = (await getUserProfile(hostId))?.subdomain;
+    } catch {}
+  }
+  const origin = subdomain ? `https://${subdomain}.simpleplek.co.za` : "https://simpleplek.co.za";
+  return `${origin}/${kind === "booking" ? "bookings" : "estimate"}/${encodeURIComponent(id)}`;
+}
+
+function formatStayDate(value: string): string {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-ZA", { timeZone: "Africa/Johannesburg", dateStyle: "medium" });
+}
+
+function emailShell(heading: string, body: string, buttonUrl: string, buttonLabel: string): string {
+  return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+      <h2 style="color: #0d9488; margin-top: 0;">${heading}</h2>
+      ${body}
+      <div style="margin: 25px 0; text-align: center;">
+        <a href="${escapeHtml(buttonUrl)}" style="background-color: #0d9488; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">${buttonLabel}</a>
+      </div>
+      <p>Regards,<br/><strong>Simpleplek Team</strong></p>
+    </div>
+  `;
+}
+
+/**
+ * Emails sent when someone joins a stay through its invite link (first join only):
+ * the joiner gets a confirmation, and the customer who owns the stay is told who joined
+ * and where to remove them or refresh the link. Never throws; failures are logged.
+ */
+export async function sendGuestJoinedEmails(params: {
+  kind: "booking" | "estimate";
+  stay: { id: string; propertyId: string; customerName?: string; customerEmail?: string; fromDate: string; toDate: string };
+  guest: { uid: string; email: string; name: string };
+}): Promise<void> {
+  const { kind, stay, guest } = params;
+  try {
+    const property = await getProperty(stay.propertyId).catch(() => null);
+    const propertyTitle = property?.title || "your stay";
+    const url = await stayPageUrl(kind, stay.id, property?.hostId);
+    const dates = `${formatStayDate(stay.fromDate)} – ${formatStayDate(stay.toDate)}`;
+    const noun = kind === "booking" ? "booking" : "stay estimate";
+    const guestLabel = guest.name ? `${guest.name} (${guest.email})` : guest.email;
+
+    const detailsTable = `
+      <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr><td style="padding: 6px 0; color: #64748b;">Property:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(propertyTitle)}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Dates:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(dates)}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Organised by:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(stay.customerName || "the organiser")}</td></tr>
+        </table>
+      </div>`;
+
+    const sends: Promise<boolean>[] = [];
+
+    if (guest.email) {
+      sends.push(
+        sendEmail(
+          [guest.email],
+          `You joined a stay at ${propertyTitle}`,
+          emailShell(
+            "You're on the guest list",
+            `<p>Hi <strong>${escapeHtml(guest.name || guest.email)}</strong>,</p>
+             <p>You have joined this ${noun} as a guest.</p>
+             ${detailsTable}
+             <p style="color: #64748b; font-size: 12px;">If you did not mean to join, ask the organiser to remove you.</p>`,
+            url,
+            kind === "booking" ? "View booking" : "View stay estimate"
+          ),
+          "guest-joined (joiner)"
+        )
+      );
+    }
+
+    const customerEmail = stay.customerEmail?.trim();
+    if (customerEmail && customerEmail.toLowerCase() !== guest.email.toLowerCase()) {
+      sends.push(
+        sendEmail(
+          [customerEmail],
+          `${guest.name || guest.email} joined your stay at ${propertyTitle}`,
+          emailShell(
+            "Someone joined your stay",
+            `<p>Hi <strong>${escapeHtml(stay.customerName || "there")}</strong>,</p>
+             <p><strong>${escapeHtml(guestLabel)}</strong> joined your ${noun} using your invite link.</p>
+             ${detailsTable}
+             <p>If you don't recognise them, open the ${noun} to remove them and refresh the invite link so the old link stops working.</p>`,
+            url,
+            "Manage guests"
+          ),
+          "guest-joined (customer)"
+        )
+      );
+    }
+
+    await Promise.all(sends);
+  } catch (error) {
+    console.error("[Resend] Error in sendGuestJoinedEmails:", error);
+  }
+}

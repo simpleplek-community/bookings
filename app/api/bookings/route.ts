@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBooking, listBookings, getProperty, updateBookingStatus, getBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
-import { getSessionUser, isPaymentsLive, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
+import { getSessionUser, isPaymentsLive, isCustomerOf, isPartyTo, ownsProperty, scopeStayForViewer, unauthorized, forbidden } from "@/lib/auth";
 import { quoteStayForRequest } from "@/lib/stay-quote";
 
 // In-memory cache for external feeds keyed by URL to support multiple properties
@@ -171,10 +171,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Only the customer receives the invite token in listings; joined guests get a
+    // read-only view without the token or other guests' emails.
     const visible = bookings.map((b: any) => {
-      const { token, ...rest } = b;
+      const { token, removedGuests, ...rest } = b;
+      if (session && isCustomerOf(session, b)) return { ...rest, token };
       if (session?.isSuperAdmin || ownedPropertyIds.has(b.propertyId)) return rest;
-      if (isPartyTo(session, b)) return { ...rest, token };
+      if (session && isPartyTo(session, b)) return scopeStayForViewer(b, "guest", session.uid);
       return redactBooking(b);
     });
 
