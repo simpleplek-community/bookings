@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBooking, getProperty } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
-import { getSessionUser, isPartyTo, ownsProperty, unauthorized, forbidden } from "@/lib/auth";
-
-async function canAccessBooking(request: NextRequest, booking: any): Promise<Response | null> {
-  const session = await getSessionUser(request);
-  if (!session) return unauthorized();
-  if (session.isSuperAdmin || isPartyTo(session, booking)) return null;
-  if (ownsProperty(session, await getProperty(booking.propertyId))) return null;
-  return forbidden("You do not have access to this booking.");
-}
+import { scopeStayForViewer } from "@/lib/auth";
+import { loadStayForRequest } from "@/lib/stay-access";
 
 export async function GET(
   request: NextRequest,
@@ -17,13 +9,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const booking = await getBooking(id);
-    if (!booking) {
-      return NextResponse.json({ success: false, error: "Booking not found." }, { status: 404 });
-    }
-    const denied = await canAccessBooking(request, booking);
-    if (denied) return denied;
-    return NextResponse.json({ success: true, data: booking });
+    const access = await loadStayForRequest(request, "booking", id);
+    if (!access.ok) return access.response;
+    return NextResponse.json({ success: true, data: scopeStayForViewer(access.record, access.role, access.session.uid) });
   } catch (err: unknown) {
     const error = err as Error;
     console.error("GET /api/bookings/[id] error:", error);
@@ -31,18 +19,16 @@ export async function GET(
   }
 }
 
+/** Resends the booking confirmation email. Customer, host or admin only. */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const booking = await getBooking(id);
-    if (!booking) {
-      return NextResponse.json({ success: false, error: "Booking not found." }, { status: 404 });
-    }
-    const denied = await canAccessBooking(request, booking);
-    if (denied) return denied;
+    const access = await loadStayForRequest(request, "booking", id, { manage: true });
+    if (!access.ok) return access.response;
+    const booking = access.record;
 
     const sent = await sendBookingConfirmationEmail(booking);
     if (sent) {

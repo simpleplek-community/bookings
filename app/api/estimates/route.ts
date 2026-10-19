@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createEstimate, updateEstimate, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
-import { getSessionUser, isPartyTo, unauthorized, forbidden } from "@/lib/auth";
+import { getSessionUser, viewerRoleFor, canManageStay, unauthorized, forbidden } from "@/lib/auth";
 import { quoteStayForRequest } from "@/lib/stay-quote";
 
 export async function POST(request: NextRequest) {
@@ -16,9 +16,7 @@ export async function POST(request: NextRequest) {
       packageId,
       customerName,
       fromDate,
-      toDate,
-      guests,
-      guestsDetails
+      toDate
     } = body;
 
     // Validation
@@ -68,8 +66,9 @@ export async function POST(request: NextRequest) {
       fromDate: start.toISOString(),
       toDate: end.toISOString(),
       total: priced.quote.total,
-      guests: Array.isArray(guests) ? guests : [],
-      guestsDetails: typeof guestsDetails === "object" && guestsDetails !== null ? guestsDetails : {}
+      // Guests are only ever added through the invite link, using their verified session.
+      guests: [],
+      guestsDetails: {}
     });
 
     return NextResponse.json({ success: true, estimate }, { status: 201 });
@@ -94,14 +93,17 @@ export async function PATCH(request: NextRequest) {
     if (!existing) {
       return NextResponse.json({ success: false, error: "Estimate not found." }, { status: 404 });
     }
-    if (!isPartyTo(session, existing)) {
+    const property = await getProperty(existing.propertyId);
+    const role = viewerRoleFor(session, existing, property);
+    if (!role) {
       return forbidden("You are not part of this estimate.");
+    }
+    if (!canManageStay(role)) {
+      return forbidden("Only the organiser can change the package. Guests have read-only access.");
     }
     if (existing.paymentStatus === "paid") {
       return NextResponse.json({ success: false, error: "This estimate has already been paid." }, { status: 409 });
     }
-
-    const property = await getProperty(existing.propertyId);
     if (!property) {
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
@@ -124,7 +126,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Estimate updated successfully.",
-      estimate: { ...existing, packageId: priced.packageId, total: priced.quote.total }
+      estimate: { ...existing, packageId: priced.packageId, total: priced.quote.total, viewerRole: role }
     });
   } catch (error: any) {
     console.error("PATCH /api/estimates error:", error);

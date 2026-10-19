@@ -369,7 +369,8 @@ function HomePageContent() {
   };
 
   const handleShareEstimate = () => {
-    if (!latestEstimate) return;
+    // Only the organiser receives the invite token; guests have nothing to share.
+    if (!latestEstimate?.token) return;
     const inviteUrl = `${window.location.origin}/i/${latestEstimate.token}`;
     navigator.clipboard.writeText(inviteUrl);
     setCopiedEstimateUrl(true);
@@ -461,14 +462,16 @@ function HomePageContent() {
                   Resume
                   <ArrowRightIcon data-icon="inline-end" />
                 </Button>
-                <Button variant="outline" onClick={handleShareEstimate}>
-                  {copiedEstimateUrl ? (
-                    <CheckIcon data-icon="inline-start" />
-                  ) : (
-                    <CopyIcon data-icon="inline-start" />
-                  )}
-                  {copiedEstimateUrl ? "Copied" : "Share"}
-                </Button>
+                {latestEstimate.token && (
+                  <Button variant="outline" onClick={handleShareEstimate}>
+                    {copiedEstimateUrl ? (
+                      <CheckIcon data-icon="inline-start" />
+                    ) : (
+                      <CopyIcon data-icon="inline-start" />
+                    )}
+                    {copiedEstimateUrl ? "Copied" : "Share"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

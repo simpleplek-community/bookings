@@ -11,6 +11,7 @@ import {
   GiftIcon,
   KeyRoundIcon,
   LockIcon,
+  RefreshCwIcon,
   Share2Icon,
   ShieldXIcon,
   SparklesIcon,
@@ -74,7 +75,8 @@ interface Booking {
   paymentStatus: string;
   token?: string;
   guests?: string[];
-  guestsDetails?: Record<string, { name: string; email: string }>;
+  guestsDetails?: Record<string, { name: string; email?: string; joinedAt?: string }>;
+  viewerRole?: "admin" | "host" | "customer" | "guest";
 }
 
 function BookingDetailsContent({ id }: { id: string }) {
@@ -88,6 +90,11 @@ function BookingDetailsContent({ id }: { id: string }) {
   const [purchasingAddonId, setPurchasingAddonId] = useState<string>("");
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [addonError, setAddonError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState<boolean>(false);
+  const [isRefreshingLink, setIsRefreshingLink] = useState<boolean>(false);
+  const [linkRefreshed, setLinkRefreshed] = useState<boolean>(false);
+  const [removingGuestId, setRemovingGuestId] = useState<string>("");
+  const [guestError, setGuestError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
@@ -96,6 +103,7 @@ function BookingDetailsContent({ id }: { id: string }) {
         const bkRes = await fetch(`/api/bookings/${id}`);
         const bkResult = await bkRes.json();
         if (!bkRes.ok || !bkResult.success) {
+          setAccessDenied(bkRes.status === 403);
           setIsLoading(false);
           return;
         }
@@ -148,6 +156,47 @@ function BookingDetailsContent({ id }: { id: string }) {
     navigator.clipboard.writeText(inviteUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleRefreshLink = async () => {
+    if (!booking) return;
+    if (!window.confirm("Create a new invite link? The current link will stop working for anyone who hasn't joined yet.")) return;
+    setIsRefreshingLink(true);
+    setGuestError(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/invite`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || "Could not refresh the invite link.");
+      setBooking((prev) => (prev ? { ...prev, token: result.token } : prev));
+      setLinkRefreshed(true);
+      setTimeout(() => setLinkRefreshed(false), 4000);
+    } catch (err: unknown) {
+      setGuestError((err as Error).message || "Could not refresh the invite link.");
+    } finally {
+      setIsRefreshingLink(false);
+    }
+  };
+
+  const handleRemoveGuest = async (guestId: string, label: string) => {
+    if (!booking) return;
+    if (!window.confirm(`Remove ${label} from this booking? They won't be able to rejoin with the invite link.`)) return;
+    setRemovingGuestId(guestId);
+    setGuestError(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/guests/${encodeURIComponent(guestId)}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || "Could not remove the guest.");
+      setBooking((prev) => {
+        if (!prev) return prev;
+        const guestsDetails = { ...(prev.guestsDetails || {}) };
+        delete guestsDetails[guestId];
+        return { ...prev, guests: (prev.guests || []).filter((g) => g !== guestId), guestsDetails };
+      });
+    } catch (err: unknown) {
+      setGuestError((err as Error).message || "Could not remove the guest.");
+    } finally {
+      setRemovingGuestId("");
+    }
   };
 
   const handlePurchaseAddon = async (addon: PackageData) => {
@@ -223,7 +272,7 @@ function BookingDetailsContent({ id }: { id: string }) {
     );
   }
 
-  if (!booking) {
+  if (!booking && !accessDenied) {
     return (
       <div className="mx-auto w-full max-w-md px-4 py-16">
         <Empty className="rounded-xl border">
@@ -251,12 +300,8 @@ function BookingDetailsContent({ id }: { id: string }) {
     );
   }
 
-  // Authorization check: User must be customer, guest, or admin
-  const isCustomer = booking.customerEmail?.toLowerCase() === user.email?.toLowerCase();
-  const isGuest = booking.guests && booking.guests.includes(user.uid);
-  const isUserAuthorized = isCustomer || isGuest || user.isAdmin;
-
-  if (!isUserAuthorized) {
+  // The API only returns bookings the user is party to, hosts or administers.
+  if (accessDenied || !booking) {
     return (
       <div className="mx-auto w-full max-w-md px-4 py-16">
         <Empty className="rounded-xl border">
@@ -284,6 +329,7 @@ function BookingDetailsContent({ id }: { id: string }) {
     );
   }
 
+  const canManage = booking.viewerRole === "customer" || booking.viewerRole === "host" || booking.viewerRole === "admin";
   const isHourly = property?.bookingType === "hourly";
   const checkIn = formatDisplayDate(booking.fromDate);
   const checkOut = formatDisplayDate(booking.toDate);
@@ -459,11 +505,13 @@ function BookingDetailsContent({ id }: { id: string }) {
                     Invited stay guests
                   </CardTitle>
                   <CardDescription>
-                    Share your stay access link with companions joining this reservation.
+                    {canManage
+                      ? "Share your invite link with companions. You'll get an email when someone joins."
+                      : `${booking.customerName} manages the invite link and guest list for this stay.`}
                   </CardDescription>
                 </div>
 
-                {booking.token && (
+                {canManage && booking.token && (
                   <Button onClick={handleCopyInviteLink} className="shrink-0">
                     {copiedLink ? (
                       <CheckIcon data-icon="inline-start" />
@@ -475,19 +523,51 @@ function BookingDetailsContent({ id }: { id: string }) {
                 )}
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
+                {guestError && (
+                  <Alert variant="destructive">
+                    <TriangleAlertIcon />
+                    <AlertDescription>{guestError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {canManage && (
+                  <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
+                    {booking.token && (
+                      <span className="break-all font-mono text-xs text-muted-foreground">
+                        {typeof window !== "undefined" ? `${window.location.origin}/i/${booking.token}` : ""}
+                      </span>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {linkRefreshed
+                          ? "New link created. The old link no longer works."
+                          : "Shared the link with the wrong person? Refresh it."}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={handleRefreshLink} disabled={isRefreshingLink}>
+                        {isRefreshingLink ? (
+                          <Spinner className="size-3.5" data-icon="inline-start" />
+                        ) : (
+                          <RefreshCwIcon data-icon="inline-start" />
+                        )}
+                        Refresh invite link
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Confirmed party ({booking.guests?.length || 0})
                 </span>
 
                 {booking.guests && booking.guests.length > 0 ? (
-                  <ul className="flex flex-wrap gap-2">
-                    {booking.guests.map((gUid, idx) => {
+                  <ul className="flex flex-col gap-2">
+                    {booking.guests.map((gUid) => {
                       const details = booking.guestsDetails?.[gUid];
                       const guestName =
                         details?.name ||
                         (gUid === user.uid
                           ? user.displayName || user.email?.split("@")[0] || "You"
-                          : details?.email || `${gUid.substring(0, 8)}...`);
+                          : "Guest");
 
                       const label =
                         gUid === user.uid && guestName !== "You"
@@ -495,12 +575,33 @@ function BookingDetailsContent({ id }: { id: string }) {
                           : guestName;
 
                       return (
-                        <li key={idx}>
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border bg-muted/50 px-3 py-1.5 text-sm">
-                            <UserIcon className="size-3.5 text-muted-foreground" />
-                            <span className="text-xs">
+                        <li
+                          key={gUid}
+                          className="flex items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-1.5 text-sm"
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <UserIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate text-xs">
                               {label}
+                              {canManage && details?.email ? ` · ${details.email}` : ""}
                             </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {details?.joinedAt && (
+                              <span className="hidden text-xs text-muted-foreground sm:inline">
+                                Joined {formatDisplayDate(details.joinedAt)}
+                              </span>
+                            )}
+                            {canManage && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveGuest(gUid, guestName)}
+                                disabled={removingGuestId === gUid}
+                              >
+                                {removingGuestId === gUid ? "Removing..." : "Remove"}
+                              </Button>
+                            )}
                           </span>
                         </li>
                       );
@@ -509,8 +610,9 @@ function BookingDetailsContent({ id }: { id: string }) {
                 ) : (
                   <div className="rounded-lg border border-dashed p-5 text-center">
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      No companions have accepted this stay invite yet. Share the link above to
-                      invite them.
+                      {canManage
+                        ? "No companions have accepted this stay invite yet. Share the link above to invite them."
+                        : "No other guests have joined yet."}
                     </p>
                   </div>
                 )}

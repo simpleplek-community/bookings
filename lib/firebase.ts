@@ -711,6 +711,7 @@ export async function getEstimate(id: string): Promise<any | null> {
 }
 
 export async function getEstimateByToken(token: string): Promise<any | null> {
+  if (!isCurrentInviteToken(token)) return null;
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
@@ -769,49 +770,6 @@ export async function updateEstimate(id: string, data: Partial<any>): Promise<bo
     return true;
   } catch (err) {
     console.error(`[Firebase] updateEstimate error:`, err);
-    return false;
-  }
-}
-
-export async function addGuestToEstimate(id: string, guestUid: string, guestEmail?: string, guestName?: string): Promise<boolean> {
-  const db = getFirestore();
-  if (isMockMode || !db) {
-    const dbData = readMockDb();
-    dbData.estimates = dbData.estimates || [];
-    const index = dbData.estimates.findIndex((e: any) => e.id === id);
-    if (index >= 0) {
-      const guests = dbData.estimates[index].guests || [];
-      if (!guests.includes(guestUid)) {
-        guests.push(guestUid);
-      }
-      dbData.estimates[index].guests = guests;
-      
-      const guestsDetails = dbData.estimates[index].guestsDetails || {};
-      guestsDetails[guestUid] = { email: guestEmail || "", name: guestName || "" };
-      dbData.estimates[index].guestsDetails = guestsDetails;
-
-      writeMockDb(dbData);
-      return true;
-    }
-    return false;
-  }
-  try {
-    const docRef = db.collection("estimates").doc(id);
-    const doc = await docRef.get();
-    if (doc.exists) {
-      const data = doc.data();
-      const guests = data?.guests || [];
-      const guestsDetails = data?.guestsDetails || {};
-      if (!guests.includes(guestUid)) {
-        guests.push(guestUid);
-      }
-      guestsDetails[guestUid] = { email: guestEmail || "", name: guestName || "" };
-      await docRef.update({ guests, guestsDetails });
-      return true;
-    }
-    return false;
-  } catch (err) {
-    console.error(`[Firebase] addGuestToEstimate error:`, err);
     return false;
   }
 }
@@ -904,50 +862,173 @@ export async function getLatestEstimateForUser(userId: string, propertyId?: stri
   }
 }
 
-export async function addGuestToBooking(id: string, guestUid: string, guestEmail?: string, guestName?: string): Promise<boolean> {
+/**
+ * Invite tokens are randomId(24) (32 chars). Older Math.random() tokens (10–13 chars)
+ * were exposed by GET /api/bookings, so they are never accepted, even before
+ * scripts/rotate-legacy-invite-tokens.js has replaced them.
+ */
+export const MIN_INVITE_TOKEN_LENGTH = 20;
+
+function isCurrentInviteToken(token: unknown): token is string {
+  return typeof token === "string" && token.length >= MIN_INVITE_TOKEN_LENGTH && token.length <= 128;
+}
+
+// ==========================================
+// STAY GUESTS & INVITE TOKENS (bookings + estimates)
+// ==========================================
+
+type StayCollection = "bookings" | "estimates";
+
+/** Upper bound on joined guests per booking/estimate, so a leaked link can't be used to flood a stay. */
+export const MAX_GUESTS_PER_STAY = 20;
+
+export interface StayGuest {
+  uid: string;
+  email: string;
+  name: string;
+}
+
+export type AddGuestResult =
+  | { ok: true; added: boolean; record: any }
+  | { ok: false; reason: "not_found" | "full" | "removed" | "error" };
+
+/** Applies a join to a stay record in place. `added` is false when the user was already a guest. */
+function applyGuestJoin(record: any, guest: StayGuest): AddGuestResult {
+  const guests: string[] = Array.isArray(record.guests) ? [...record.guests] : [];
+  if (guests.includes(guest.uid)) return { ok: true, added: false, record };
+  if (Array.isArray(record.removedGuests) && record.removedGuests.includes(guest.uid)) {
+    return { ok: false, reason: "removed" };
+  }
+  if (guests.length >= MAX_GUESTS_PER_STAY) return { ok: false, reason: "full" };
+
+  guests.push(guest.uid);
+  const guestsDetails = {
+    ...(record.guestsDetails || {}),
+    [guest.uid]: { email: guest.email, name: guest.name, joinedAt: new Date().toISOString() },
+  };
+  record.guests = guests;
+  record.guestsDetails = guestsDetails;
+  return { ok: true, added: true, record };
+}
+
+/** Adds a guest atomically, so two concurrent opens of the same link only count (and email) once. */
+async function addGuestToStay(collection: StayCollection, id: string, guest: StayGuest): Promise<AddGuestResult> {
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
-    dbData.bookings = dbData.bookings || [];
-    const index = dbData.bookings.findIndex((b: any) => b.id === id);
-    if (index >= 0) {
-      const guests = dbData.bookings[index].guests || [];
-      if (!guests.includes(guestUid)) {
-        guests.push(guestUid);
-      }
-      dbData.bookings[index].guests = guests;
-      
-      const guestsDetails = dbData.bookings[index].guestsDetails || {};
-      guestsDetails[guestUid] = { email: guestEmail || "", name: guestName || "" };
-      dbData.bookings[index].guestsDetails = guestsDetails;
-
-      writeMockDb(dbData);
-      return true;
-    }
-    return false;
+    const list: any[] = (dbData[collection] = dbData[collection] || []);
+    const record = list.find((r: any) => r.id === id);
+    if (!record) return { ok: false, reason: "not_found" };
+    const result = applyGuestJoin(record, guest);
+    if (result.ok && result.added) writeMockDb(dbData);
+    return result;
   }
   try {
-    const docRef = db.collection("bookings").doc(id);
-    const doc = await docRef.get();
-    if (doc.exists) {
-      const data = doc.data();
-      const guests = data?.guests || [];
-      const guestsDetails = data?.guestsDetails || {};
-      if (!guests.includes(guestUid)) {
-        guests.push(guestUid);
+    const ref = db.collection(collection).doc(id);
+    return await db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return { ok: false, reason: "not_found" } as AddGuestResult;
+      const record = snap.data();
+      const result = applyGuestJoin(record, guest);
+      if (result.ok && result.added) {
+        tx.update(ref, { guests: record.guests, guestsDetails: record.guestsDetails });
       }
-      guestsDetails[guestUid] = { email: guestEmail || "", name: guestName || "" };
-      await docRef.update({ guests, guestsDetails });
-      return true;
-    }
-    return false;
+      return result;
+    });
   } catch (err) {
-    console.error(`[Firebase] addGuestToBooking error:`, err);
-    return false;
+    console.error(`[Firebase] addGuestToStay error (${collection}/${id}):`, err);
+    return { ok: false, reason: "error" };
   }
 }
 
+export function addGuestToBooking(id: string, guest: StayGuest): Promise<AddGuestResult> {
+  return addGuestToStay("bookings", id, guest);
+}
+
+export function addGuestToEstimate(id: string, guest: StayGuest): Promise<AddGuestResult> {
+  return addGuestToStay("estimates", id, guest);
+}
+
+/**
+ * Removes a guest and records them in removedGuests so the same invite link can't
+ * re-add them. Returns false when the stay does not exist.
+ */
+async function removeGuestFromStay(collection: StayCollection, id: string, guestUid: string): Promise<boolean> {
+  const apply = (record: any) => {
+    const guests = (Array.isArray(record.guests) ? record.guests : []).filter((g: string) => g !== guestUid);
+    const guestsDetails = { ...(record.guestsDetails || {}) };
+    delete guestsDetails[guestUid];
+    const removedGuests = Array.from(new Set([...(record.removedGuests || []), guestUid]));
+    return { guests, guestsDetails, removedGuests };
+  };
+
+  const db = getFirestore();
+  if (isMockMode || !db) {
+    const dbData = readMockDb();
+    const list: any[] = (dbData[collection] = dbData[collection] || []);
+    const record = list.find((r: any) => r.id === id);
+    if (!record) return false;
+    Object.assign(record, apply(record));
+    writeMockDb(dbData);
+    return true;
+  }
+  const ref = db.collection(collection).doc(id);
+  return db.runTransaction(async (tx: any) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    tx.update(ref, apply(snap.data()));
+    return true;
+  });
+}
+
+export function removeGuestFromBooking(id: string, guestUid: string): Promise<boolean> {
+  return removeGuestFromStay("bookings", id, guestUid);
+}
+
+export function removeGuestFromEstimate(id: string, guestUid: string): Promise<boolean> {
+  return removeGuestFromStay("estimates", id, guestUid);
+}
+
+/** Issues a fresh invite token. The previous link stops working immediately. */
+async function rotateStayToken(collection: StayCollection, id: string): Promise<string | null> {
+  const token = randomId(24);
+  const updates = { token, tokenRotatedAt: new Date().toISOString() };
+  const db = getFirestore();
+  if (isMockMode || !db) {
+    const dbData = readMockDb();
+    const list: any[] = (dbData[collection] = dbData[collection] || []);
+    const record = list.find((r: any) => r.id === id);
+    if (!record) return null;
+    Object.assign(record, updates);
+    writeMockDb(dbData);
+    return token;
+  }
+  const ref = db.collection(collection).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  await ref.update(updates);
+  return token;
+}
+
+export function rotateBookingToken(id: string): Promise<string | null> {
+  return rotateStayToken("bookings", id);
+}
+
+export function rotateEstimateToken(id: string): Promise<string | null> {
+  return rotateStayToken("estimates", id);
+}
+
+export async function listBookingsForEstimate(estimateId: string): Promise<any[]> {
+  const db = getFirestore();
+  if (isMockMode || !db) {
+    return (readMockDb().bookings || []).filter((b: any) => b.estimateId === estimateId);
+  }
+  const snap = await db.collection("bookings").where("estimateId", "==", estimateId).get();
+  return snap.docs.map((doc: any) => doc.data());
+}
+
 export async function getBookingByToken(token: string): Promise<any | null> {
+  if (!isCurrentInviteToken(token)) return null;
   const db = getFirestore();
   if (isMockMode || !db) {
     const dbData = readMockDb();
@@ -1199,7 +1280,8 @@ export async function verifyIdToken(idToken: string): Promise<any> {
     return {
       uid: user.localId,
       email: user.email || null,
-      email_verified: user.emailVerified || false
+      email_verified: user.emailVerified || false,
+      name: user.displayName || null
     };
   } catch (err: any) {
     console.error("[Google Identity Lookup] Failed to verify ID token:", err);

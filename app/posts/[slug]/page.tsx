@@ -1056,7 +1056,7 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                       {latestEstimate.guests.map((gUid: string, idx: number) => {
                         const details = latestEstimate.guestsDetails?.[gUid];
                         const label = details
-                          ? `${details.name} (${details.email})`
+                          ? (details.email ? `${details.name} (${details.email})` : details.name)
                           : gUid === user?.uid
                             ? "You"
                             : gUid.substring(0, 8) + "…";
