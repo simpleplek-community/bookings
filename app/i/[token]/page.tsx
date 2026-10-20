@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, AuthProvider } from "@/components/auth";
 import Link from "next/link";
-import { formatDisplayDate } from "@/lib/utils";
+import { CheckIcon, Loader2Icon, MailIcon, UsersIcon } from "lucide-react";
+import { useAuth, AuthProvider } from "@/components/auth";
 
 interface InvitePageProps {
   params: Promise<{ token: string }>;
@@ -15,6 +15,7 @@ interface InvitePreview {
   id: string;
   propertyTitle: string;
   propertyImage: string | null;
+  isHourly: boolean;
   organiserName: string;
   fromDate: string;
   toDate: string;
@@ -25,8 +26,45 @@ interface InvitePreview {
   removed: boolean;
 }
 
+type JoinStatus = "idle" | "joining" | "joined" | "declined";
+
+// Stationery palette for the invitation card.
+const serif: React.CSSProperties = { fontFamily: "var(--font-invite-serif), ui-serif, Georgia, serif" };
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4A40]/40";
+
 function stayPath(preview: { kind: "booking" | "estimate"; id: string }) {
   return preview.kind === "booking" ? `/bookings/${preview.id}` : `/estimate/${preview.id}`;
+}
+
+function formatInviteDate(value: string) {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Johannesburg" });
+}
+
+function formatInviteTime(value: string) {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" });
+}
+
+function stayLengthLabel(preview: InvitePreview) {
+  if (preview.isHourly) return "1 slot";
+  const nights = Math.max(1, Math.round((new Date(preview.toDate).getTime() - new Date(preview.fromDate).getTime()) / 86_400_000));
+  return `${nights} night${nights === 1 ? "" : "s"}`;
+}
+
+function InviteCard({ children, labelledBy }: { children: React.ReactNode; labelledBy?: string }) {
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center bg-[#060607] px-4 py-12 text-base leading-6 text-[#1C2422]">
+      <article
+        aria-labelledby={labelledBy}
+        className="w-full max-w-[420px] overflow-hidden rounded-[20px] bg-[#F6F2EA] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.6)]"
+      >
+        {children}
+      </article>
+    </div>
+  );
 }
 
 function InviteLandingContent({ params }: InvitePageProps) {
@@ -36,8 +74,7 @@ function InviteLandingContent({ params }: InvitePageProps) {
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
-  const [joined, setJoined] = useState(false);
+  const [status, setStatus] = useState<JoinStatus>("idle");
 
   // Load the stay summary only. Joining happens when the user clicks the button.
   useEffect(() => {
@@ -70,7 +107,7 @@ function InviteLandingContent({ params }: InvitePageProps) {
 
   const handleJoin = async () => {
     if (!preview) return;
-    setIsJoining(true);
+    setStatus("joining");
     setError(null);
     try {
       const endpoint = preview.kind === "booking" ? "/api/bookings/accept-invite" : "/api/estimates/accept-invite";
@@ -81,125 +118,185 @@ function InviteLandingContent({ params }: InvitePageProps) {
       });
       const result = await res.json();
       if (!res.ok || !result.success) throw new Error(result.error || "Failed to join this stay.");
-      setJoined(true);
-      router.push(stayPath(preview));
+      setPreview((prev) => (prev && !result.alreadyJoined ? { ...prev, guestCount: prev.guestCount + 1 } : prev));
+      setStatus("joined");
+      setTimeout(() => router.push(stayPath(preview)), 1500);
     } catch (err: any) {
       setError(err.message || "Failed to join this stay.");
-      setIsJoining(false);
+      setStatus("idle");
     }
   };
 
-  const isLoading = authLoading || !user || (!preview && !error);
-  const cannotJoin = preview && (preview.expired || preview.removed);
-  const alreadyIn = preview && (preview.alreadyJoined || preview.isOrganiser);
+  if (authLoading || !user || (!preview && !error)) {
+    return (
+      <InviteCard>
+        <div role="status" className="flex flex-col items-center gap-3 px-8 py-14 text-sm text-[#5E6865]">
+          <Loader2Icon className="h-5 w-5 animate-spin text-[#1F4A40]" aria-hidden="true" />
+          Checking invitation…
+        </div>
+      </InviteCard>
+    );
+  }
+
+  if (!preview) {
+    return (
+      <InviteCard labelledBy="invite-title">
+        <div className="px-8 py-10 text-center">
+          <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#E6DFD2] text-[#1F4A40]">
+            <MailIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+          </span>
+          <h1 id="invite-title" style={serif} className="mt-5 text-[32px] leading-[1.1]">
+            Invitation unavailable
+          </h1>
+          <p className="mt-3 text-sm text-[#5E6865]">{error}</p>
+          <p className="mt-1 text-sm text-[#5E6865]">Ask the organiser for a fresh invite link.</p>
+          <Link
+            href="/"
+            className={`mt-6 block w-full rounded-xl bg-[#1F4A40] px-4 py-3.5 text-[15px] font-medium text-[#F6F2EA] transition-colors hover:bg-[#173A32] ${focusRing}`}
+          >
+            Go to home page
+          </Link>
+        </div>
+      </InviteCard>
+    );
+  }
+
+  const alreadyIn = preview.alreadyJoined || preview.isOrganiser;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-zinc-950 px-4 py-16 text-white relative">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute -top-[10%] left-[20%] w-[60%] h-[60%] rounded-full bg-teal-500/10 blur-[120px]" />
+    <InviteCard labelledBy="invite-title">
+      <header className="px-8 pb-6 pt-8 text-center">
+        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#E6DFD2] text-[#1F4A40]">
+          <MailIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+        </span>
+        <p className="mt-5 text-sm text-[#5E6865]">
+          <strong className="font-medium text-[#1C2422]">{preview.organiserName}</strong> invited you to join their{" "}
+          {preview.kind === "booking" ? "booking" : "stay estimate"}
+        </p>
+        <h1 id="invite-title" style={serif} className="mt-2 text-[40px] leading-[1.05] tracking-[-0.01em]">
+          Stay invitation
+        </h1>
+      </header>
+
+      <div className="px-5">
+        {preview.propertyImage && (
+          <img
+            alt={preview.propertyTitle}
+            src={preview.propertyImage}
+            className="aspect-[16/10] w-full rounded-xl object-cover"
+          />
+        )}
+        <p style={serif} className="mt-4 text-center text-2xl italic">{preview.propertyTitle}</p>
       </div>
 
-      <div className="relative w-full max-w-md p-8 rounded-3xl border border-teal-100/10 bg-white/5 backdrop-blur-md text-center space-y-4">
-        <span className="text-3xl block">✉</span>
+      <dl className="mx-8 mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
+        <div>
+          <dt className="text-xs text-[#5E6865]">{preview.isHourly ? "Starts" : "From"}</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">
+            {formatInviteDate(preview.fromDate)}
+            {preview.isHourly && <span className="block text-sm text-[#5E6865]">{formatInviteTime(preview.fromDate)}</span>}
+          </dd>
+        </div>
+        <div aria-hidden="true" className="flex flex-col items-center">
+          <span className="h-px w-8 bg-[#E6DFD2]" />
+          <span className="mt-1 text-[11px] text-[#5E6865]">{stayLengthLabel(preview)}</span>
+        </div>
+        <div>
+          <dt className="text-xs text-[#5E6865]">{preview.isHourly ? "Ends" : "To"}</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">
+            {formatInviteDate(preview.toDate)}
+            {preview.isHourly && <span className="block text-sm text-[#5E6865]">{formatInviteTime(preview.toDate)}</span>}
+          </dd>
+        </div>
+      </dl>
 
-        <h2 className="text-lg font-bold">Stay invitation</h2>
+      {/* Ticket perforation */}
+      <div className="relative my-7" aria-hidden="true">
+        <span className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-[#060607]" />
+        <span className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-[#060607]" />
+        <div className="mx-6 border-t-2 border-dashed border-[#E6DFD2]" />
+      </div>
 
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center space-y-3 py-4">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-t-teal-500 border-white/15" />
-            <p className="text-xs text-zinc-300 font-medium">Checking invitation...</p>
+      <footer className="px-8 pb-8">
+        <p className="flex items-center justify-center gap-2 text-sm">
+          <UsersIcon className="h-4 w-4 text-[#1F4A40]" aria-hidden="true" />
+          <span>
+            <span className="font-medium tabular-nums">{preview.guestCount}</span>{" "}
+            {preview.guestCount === 1 ? "guest" : "guests"} joined
+          </span>
+        </p>
+
+        {error && (
+          <p role="alert" className="mt-4 rounded-xl bg-[#B42318]/10 px-4 py-3 text-center text-sm text-[#B42318]">
+            {error}
+          </p>
+        )}
+
+        {preview.expired ? (
+          <p className="mt-6 text-center text-sm text-[#5E6865]">This stay has ended, so the invitation has expired.</p>
+        ) : preview.removed ? (
+          <p className="mt-6 text-center text-sm text-[#5E6865]">
+            The organiser removed you from this stay. Contact them if this was a mistake.
+          </p>
+        ) : status === "joined" ? (
+          <div
+            role="status"
+            className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-[#1F4A40]/10 px-4 py-3.5 text-sm font-medium text-[#1F4A40]"
+          >
+            <CheckIcon className="h-4 w-4" aria-hidden="true" />
+            You&apos;ve joined this stay. Opening it…
           </div>
-        ) : !preview ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs font-bold text-red-400">
-              ⚠️ {error}
-            </div>
-            <p className="text-[11px] text-zinc-400">
-              Ask the organiser for a fresh invite link.
+        ) : alreadyIn ? (
+          <>
+            <p className="mt-4 text-center text-sm text-[#5E6865]">
+              {preview.isOrganiser ? "This is your stay." : "You've already joined this stay."}
             </p>
             <Link
-              href="/"
-              className="inline-block w-full rounded-xl bg-teal-500 py-2.5 text-xs font-bold text-white hover:bg-teal-600 transition-all"
+              href={stayPath(preview)}
+              className={`mt-3 flex w-full items-center justify-center rounded-xl bg-[#1F4A40] px-4 py-3.5 text-[15px] font-medium text-[#F6F2EA] transition-colors hover:bg-[#173A32] ${focusRing}`}
             >
-              Go to Home Page
+              Open the stay
             </Link>
+          </>
+        ) : status === "declined" ? (
+          <div role="status" className="mt-6 text-center">
+            <p className="text-sm text-[#5E6865]">Invitation dismissed.</p>
+            <button
+              type="button"
+              onClick={() => setStatus("idle")}
+              className={`mt-2 text-sm font-medium text-[#1F4A40] underline-offset-4 transition-colors hover:underline ${focusRing}`}
+            >
+              Changed your mind?
+            </button>
           </div>
         ) : (
-          <div className="space-y-4 text-left">
-            <p className="text-center text-xs text-zinc-300">
-              <strong className="text-white">{preview.organiserName}</strong> invited you to join their{" "}
-              {preview.kind === "booking" ? "booking" : "stay estimate"}.
-            </p>
-
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2 text-xs">
-              {preview.propertyImage && (
-                <img
-                  src={preview.propertyImage}
-                  alt={preview.propertyTitle}
-                  className="mb-2 h-28 w-full rounded-lg object-cover"
-                />
-              )}
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-400">Property</span>
-                <span className="font-semibold">{preview.propertyTitle}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-400">From</span>
-                <span className="font-semibold">{formatDisplayDate(preview.fromDate)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-400">To</span>
-                <span className="font-semibold">{formatDisplayDate(preview.toDate)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-400">Guests joined</span>
-                <span className="font-semibold">{preview.guestCount}</span>
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs font-bold text-red-400">
-                ⚠️ {error}
-              </div>
-            )}
-
-            {preview.expired ? (
-              <p className="text-center text-xs text-zinc-400">This stay has ended, so the invitation has expired.</p>
-            ) : preview.removed ? (
-              <p className="text-center text-xs text-zinc-400">
-                The organiser removed you from this stay. Contact them if this was a mistake.
-              </p>
-            ) : alreadyIn ? (
-              <Link
-                href={stayPath(preview)}
-                className="block w-full rounded-xl bg-teal-500 py-2.5 text-center text-xs font-bold text-white hover:bg-teal-600 transition-all"
-              >
-                {preview.isOrganiser ? "This is your stay. Open it" : "You've already joined. Open the stay"}
-              </Link>
-            ) : (
-              <>
-                <p className="text-center text-[11px] text-zinc-400">
-                  Joining shares your name and email ({user?.email}) with the organiser, who will be
-                  notified.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleJoin}
-                  disabled={isJoining || joined || Boolean(cannotJoin)}
-                  className="w-full rounded-xl bg-teal-500 py-2.5 text-xs font-bold text-white hover:bg-teal-600 transition-all disabled:opacity-60"
-                >
-                  {joined ? "Joined. Opening your stay..." : isJoining ? "Joining..." : "Join this stay"}
-                </button>
-              </>
-            )}
-
-            <Link href="/" className="block text-center text-[11px] text-zinc-400 hover:text-white">
+          <>
+            <button
+              type="button"
+              onClick={handleJoin}
+              disabled={status === "joining"}
+              className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F4A40] px-4 py-3.5 text-[15px] font-medium text-[#F6F2EA] transition-[background-color,transform] duration-150 ease-out hover:bg-[#173A32] active:scale-[0.98] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F2EA] disabled:cursor-not-allowed disabled:opacity-80 ${focusRing}`}
+            >
+              {status === "joining" && <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {status === "joining" ? "Joining…" : "Join this stay"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus("declined")}
+              className={`mt-3 block w-full rounded-lg py-2 text-center text-sm text-[#5E6865] transition-colors hover:text-[#1C2422] ${focusRing}`}
+            >
               Not now
-            </Link>
-          </div>
+            </button>
+          </>
         )}
-      </div>
-    </div>
+
+        {!alreadyIn && !preview.expired && !preview.removed && status !== "joined" && (
+          <p className="mt-5 text-center text-xs leading-5 text-[#5E6865]">
+            Joining shares your name and email ({user.email}) with the organiser, who will be notified.
+          </p>
+        )}
+      </footer>
+    </InviteCard>
   );
 }
 

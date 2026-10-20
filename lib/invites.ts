@@ -44,6 +44,7 @@ export async function invitePreview(invite: ResolvedInvite, session: SessionUser
     id: record.id,
     propertyTitle: property?.title || "Stay",
     propertyImage: property?.images?.[0] || null,
+    isHourly: property?.bookingType === "hourly",
     organiserName: record.customerName || "The organiser",
     fromDate: record.fromDate,
     toDate: record.toDate,
