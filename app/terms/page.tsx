@@ -174,37 +174,133 @@ export default function TermsPage() {
                     </div>
 
                     {/* Section 11 */}
-                    <section className="pt-6 border-t border-slate-200">
+                    <section id="section-11" className="pt-6 border-t border-slate-200">
                         <h2 className="text-xl font-bold text-slate-900 mb-4">
-                            11. Membership Tiers: Standard vs. Pro (Fractional Ownership)
+                            11. Membership Tiers: Standard vs. Pro (Alienation of Land Act &amp; Statutory Installment Framework)
                         </h2>
                         <p className="mb-4">
-                            Simpleplek offers two distinct membership paths. By selecting a plan, the Member acknowledges the different legal nature of each:
+                            Simpleplek offers two distinct membership paths. By selecting a plan, the Member acknowledges the specific legal, statutory, and regulatory framework governing each:
                         </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div className="border border-slate-200 rounded-lg p-5 bg-white shadow-xs">
                                 <h3 className="text-lg font-semibold text-slate-900 mb-2">11.1 Standard Membership</h3>
                                 <p className="text-xs uppercase font-bold text-slate-400 mb-3">Short-Term Access</p>
-                                <ul className="space-y-2 text-sm">
+                                <ul className="space-y-2 text-sm text-slate-700">
                                     <li><strong>Nature:</strong> Month-to-month or annual service subscription for discounted rental access.</li>
-                                    <li><strong>Rights:</strong> Provides no proprietary interest or equity.</li>
-                                    <li><strong>Cancellation:</strong> Subject to a 30-day notice period.</li>
+                                    <li><strong>Rights:</strong> Provides no proprietary interest, equity, or claim to real estate.</li>
+                                    <li><strong>Cancellation:</strong> Subject to a standard 30-day notice period.</li>
                                 </ul>
                             </div>
                             <div className="border border-indigo-200 rounded-lg p-5 bg-indigo-50/40 shadow-xs">
                                 <h3 className="text-lg font-semibold text-indigo-950 mb-2">11.2 Pro Membership</h3>
-                                <p className="text-xs uppercase font-bold text-indigo-500 mb-3">Share Block / Leasehold Acquisition</p>
+                                <p className="text-xs uppercase font-bold text-indigo-500 mb-3">Statutory Off-Plan Installment Sale (ALA Cap: 5 Years)</p>
                                 <ul className="space-y-2 text-sm text-indigo-950">
-                                    <li><strong>Nature:</strong> Long-term capital acquisition program over a 25-year period.</li>
-                                    <li><strong>Legal Status:</strong> Governed by the Share Block Control Act and Companies Act. Contributes toward Member Interest or Shareholder Equity.</li>
-                                    <li><strong>Premiums:</strong> Includes an operational levy and a capital contribution toward long-term interest.</li>
+                                    <li><strong>Governing Statutes:</strong> Alienation of Land Act 68 of 1981 (ALA), Share Blocks Control Act 59 of 1980, and Companies Act 71 of 2008.</li>
+                                    <li><strong>Statutory 5-Year Threshold:</strong> Under Sections 1 and 6 of the ALA, installment sales for residential property not yet held under separate title deed (off-plan sectional title developments before register opening) cannot exceed a maximum repayment period of 5 years (60 months). Long-term developer financing over 25 years does not apply.</li>
+                                    <li><strong>Settlement &amp; Year 5 Balloon / Refinance:</strong> Monthly installments during Months 1–60 fund operational levies and capital equity. The full remaining purchase price balance must be settled in full by Month 60 (typically via commercial bank mortgage bond takeout at Year 5 or cash settlement).</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* 11.3 Legal & Commercial ALA Mechanics */}
+                        <div className="space-y-6 pt-2">
+                            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs">
+                                <h3 className="text-base font-bold text-slate-900 mb-3">
+                                    11.3 The 5-Year Capital &amp; Financing Models (ALA Installments)
+                                </h3>
+                                <p className="text-sm text-slate-700 mb-4">
+                                    Because direct developer installment contracts cannot extend beyond 5 years under South African statutory law, off-plan capital collection operates under one of two financial structures:
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                        <h4 className="font-semibold text-slate-900 mb-1">Scenario A: Direct 5-Year Full Amortization</h4>
+                                        <p className="text-xs text-slate-600 mb-2">Full purchase price settled in 60 equal installments without bank financing:</p>
+                                        <p className="font-mono text-xs bg-white p-2 rounded border border-slate-200 text-slate-800">
+                                            R20,000,000 / 60 months ≈ R333,333 / month per unit
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-2">Requires high private liquidity from cash purchasers.</p>
+                                    </div>
+                                    <div className="bg-indigo-50/60 border border-indigo-200 rounded-lg p-4">
+                                        <h4 className="font-semibold text-indigo-950 mb-1">Scenario B: 5-Year Installment + Year 5 Bank Takeout (Balloon)</h4>
+                                        <p className="text-xs text-indigo-900/80 mb-2">Monthly equity contributions with Year 5 commercial bank mortgage conversion:</p>
+                                        <p className="font-mono text-xs bg-white p-2 rounded border border-indigo-100 text-indigo-950">
+                                            Months 1–60: R100,000 / month (R6m paid)<br />
+                                            Month 60: R14,000,000 Bank Mortgage Takeout
+                                        </p>
+                                        <p className="text-xs text-indigo-700 mt-2">Enables 100% developer capital recovery within the statutory 5-year limit.</p>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs text-left border border-slate-200 rounded-lg overflow-hidden">
+                                        <thead className="bg-slate-100 text-slate-700 font-semibold uppercase tracking-wider">
+                                            <tr>
+                                                <th className="p-2.5 border-b border-slate-200">Period</th>
+                                                <th className="p-2.5 border-b border-slate-200">Payment per Unit</th>
+                                                <th className="p-2.5 border-b border-slate-200">Total (5 Units Basis)</th>
+                                                <th className="p-2.5 border-b border-slate-200">Statutory Purpose</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 text-slate-700">
+                                            <tr>
+                                                <td className="p-2.5 font-medium">Months 1–60 (5 Years)</td>
+                                                <td className="p-2.5 font-mono">R100,000 / month</td>
+                                                <td className="p-2.5 font-mono">R30,000,000</td>
+                                                <td className="p-2.5">Monthly ALA installment collections via automated bank EFT/DebiCheck</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="p-2.5 font-medium">Month 60 (Year 5 End)</td>
+                                                <td className="p-2.5 font-mono">R14,000,000 Balloon</td>
+                                                <td className="p-2.5 font-mono">R70,000,000</td>
+                                                <td className="p-2.5">Buyers convert residual balance to standard bank mortgage bond payout</td>
+                                            </tr>
+                                            <tr className="bg-slate-50 font-semibold text-slate-900">
+                                                <td className="p-2.5">Total Project Capital</td>
+                                                <td className="p-2.5 font-mono">R20,000,000 / unit</td>
+                                                <td className="p-2.5 font-mono">R100,000,000</td>
+                                                <td className="p-2.5">100% developer capital recovered within statutory 5-year cycle</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs">
+                                <h3 className="text-base font-bold text-slate-900 mb-3">
+                                    11.4 Statutory Registrations, Section 20 Recordal &amp; Credit Compliance
+                                </h3>
+                                <ul className="space-y-3 text-sm text-slate-700">
+                                    <li className="flex items-start gap-2">
+                                        <span className="font-bold text-indigo-600 shrink-0">•</span>
+                                        <span>
+                                            <strong>Section 20 Deeds Office Recordal:</strong> In accordance with Section 20 of the Alienation of Land Act, the developer is legally bound to record each installment contract against the property title deed at the Deeds Office within 90 days of signature. This statutory recordal establishes buyer protection against subsequent third-party encumbrances or developer alienation.
+                                        </span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="font-bold text-indigo-600 shrink-0">•</span>
+                                        <span>
+                                            <strong>National Credit Act (NCA) Registration:</strong> Where deferred payment or interest is charged over time, the selling developer entity maintains registration as a Credit Provider with the National Credit Regulator (NCR) under the National Credit Act 34 of 2005.
+                                        </span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="font-bold text-indigo-600 shrink-0">•</span>
+                                        <span>
+                                            <strong>Automated EFT &amp; DebiCheck Mandate:</strong> To preserve project capital and prevent merchant card processing fee erosion across multi-year build cycles, all monthly installments are collected via direct bank EFT or authenticated DebiCheck debit orders.
+                                        </span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="font-bold text-indigo-600 shrink-0">•</span>
+                                        <span>
+                                            <strong>Year 5 Bank Pre-Approval:</strong> Pro Members entering 5-year installment agreements are required to maintain valid commercial mortgage pre-qualification or proof of takeout capacity for Month 60 settlement.
+                                        </span>
+                                    </li>
                                 </ul>
                             </div>
                         </div>
                     </section>
 
                     {/* Section 12 */}
-                    <section className="bg-slate-100/70 p-6 rounded-xl border border-slate-200">
+                    <section id="section-12" className="bg-slate-100/70 p-6 rounded-xl border border-slate-200">
                         <h2 className="text-xl font-bold text-slate-900 mb-3">
                             12. Pro Plan Cancellation & &quot;Member Credit&quot; System
                         </h2>

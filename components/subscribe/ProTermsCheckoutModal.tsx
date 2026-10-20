@@ -74,7 +74,7 @@ export function ProTermsCheckoutModal({
               <li className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3">
                 <span className="font-semibold text-foreground shrink-0">•</span>
                 <span>
-                  <strong>25-Year Capital Allocation:</strong> Annual subscription payments are split between operational levies and capital contributions toward property equity.
+                  <strong>5-Year Statutory Cap (Alienation of Land Act):</strong> Installment agreements for off-plan property are capped at a maximum of 5 years (60 months) under the ALA. Payments fund operational levies and capital equity, with remaining balances settled or refinanced via bank mortgage at Month 60.
                 </span>
               </li>
               <li className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3">

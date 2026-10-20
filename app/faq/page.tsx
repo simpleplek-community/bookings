@@ -21,6 +21,9 @@ export const metadata: Metadata = {
     "become a host Simpleplek",
     "Simpleplek property packages",
     "share block fractional property off-plan",
+    "alienation of land act 5 year installment",
+    "ALA off-plan sectional title",
+    "Section 20 deeds office recordal",
     "AEO Simpleplek answers",
   ],
   alternates: {
