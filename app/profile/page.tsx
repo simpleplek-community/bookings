@@ -59,12 +59,16 @@ export default function ProfilePage() {
     fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`)
       .then((res) => res.json())
       .then((json) => {
-        if (active && json.success && json.data) {
+        if (!active) return;
+        if (json.success && json.data) {
           setProfileData(json.data);
           setDisplayName(json.data.displayName || user.displayName || "");
           setBio(json.data.bio || "");
-          setIsLoadingProfile(false);
+        } else {
+          setDisplayName(user.displayName || "");
+          setErrorMessage("Could not load profile details. Please try refreshing.");
         }
+        setIsLoadingProfile(false);
       })
       .catch((err: unknown) => {
         if (active) {
