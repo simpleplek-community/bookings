@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function NavHeader() {
   const { user, loading, logOut } = useAuth();
@@ -47,6 +48,8 @@ export default function NavHeader() {
               Dashboard
             </Link>
           )}
+
+          <ThemeToggle />
 
           <Separator orientation="vertical" className="h-6" />
 
