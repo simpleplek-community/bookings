@@ -5,6 +5,7 @@ import SiteFooter from "@/components/SiteFooter";
 import { AuthProvider } from "@/components/auth";
 import "./globals.css";
 import Script from "next/script";
+import { themeInitScript } from "@/lib/theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +31,10 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       {/* Google tag (gtag.js) */}
       <Script async src="https://www.googletagmanager.com/gtag/js?id=G-G346419JPQ"></Script>
