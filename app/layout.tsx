@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Simple Plek",
-  description: "Unique packages for inaccesible locations",
+  description: "Exclusive membership for unique locations",
 };
 
 export default function RootLayout({
