@@ -35,7 +35,11 @@ function subscribe(cb: () => void) {
   };
 }
 
-export default function ThemeToggle() {
+interface ThemeToggleProps {
+  className?: string;
+}
+
+export default function ThemeToggle({ className }: ThemeToggleProps = {}) {
   const pref = useSyncExternalStore(subscribe, readThemePreference, () => "system" as const);
   const Icon = pref === "light" ? Sun : pref === "dark" ? Moon : Monitor;
 
@@ -43,6 +47,7 @@ export default function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon-sm"
+      className={className}
       aria-label={`${LABEL[pref]}. Switch to ${NEXT[pref]}`}
       title={LABEL[pref]}
       onClick={() => {
