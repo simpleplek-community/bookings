@@ -3,6 +3,7 @@ import { updateBookingStatus, getEstimate, updateEstimateStatus, createBooking, 
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { isPaymentsLive } from "@/lib/auth";
 import { createHmac, timingSafeEqual } from "crypto";
+import { trackBookingPurchased } from "@/lib/meta-conversions";
 
 const SUBSCRIPTION_PRICES_CENTS: Record<string, number> = { monthly: 1500, annual: 15000 };
 const TIMESTAMP_TOLERANCE_SECONDS = 180;
@@ -166,6 +167,11 @@ export async function POST(request: NextRequest) {
             } catch (err) {
               console.error("[Yoco Webhook] Failed to send sendBookingConfirmationEmail:", err);
             }
+
+            // Send Purchase event to Meta Conversions API
+            await trackBookingPurchased({ booking, property }).catch((err) => {
+              console.warn("[Meta CAPI] Error dispatching purchase in webhook:", err);
+            });
             
             console.log(`[Yoco Webhook] Booking created successfully from estimate ${estimateId}`);
           } else {

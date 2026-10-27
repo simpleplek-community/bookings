@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createEstimate, updateEstimate, getEstimate, getProperty, getUserProfile, isUserAdmin } from "@/lib/firebase";
 import { getSessionUser, viewerRoleFor, canManageStay, unauthorized, forbidden } from "@/lib/auth";
 import { quoteStayForRequest } from "@/lib/stay-quote";
+import { trackEstimateCreated } from "@/lib/meta-conversions";
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,6 +70,16 @@ export async function POST(request: NextRequest) {
       // Guests are only ever added through the invite link, using their verified session.
       guests: [],
       guestsDetails: {}
+    });
+
+    // Send server-side event to Meta Conversions API for ad retargeting and attribution
+    await trackEstimateCreated({
+      request,
+      estimate,
+      property,
+      user: session,
+    }).catch((err) => {
+      console.warn("[Meta CAPI] Error dispatching estimate conversion:", err);
     });
 
     return NextResponse.json({ success: true, estimate }, { status: 201 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEstimate, updateEstimateStatus, createBooking, listBookings, getProperty, updateBooking } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { getSessionUser, isPaymentsLive, isPartyTo, unauthorized, forbidden } from "@/lib/auth";
+import { trackBookingPurchased } from "@/lib/meta-conversions";
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,6 +110,15 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[confirm route] Failed to send sendBookingConfirmationEmail:", err);
     }
+
+    // Send Purchase event to Meta Conversions API for ad attribution and audience exclusion
+    await trackBookingPurchased({
+      request,
+      booking,
+      property,
+    }).catch((err) => {
+      console.warn("[Meta CAPI] Error dispatching purchase conversion:", err);
+    });
 
     return NextResponse.json({ success: true, booking, message: "Booking confirmed successfully!" }, { status: 201 });
   } catch (error: any) {
