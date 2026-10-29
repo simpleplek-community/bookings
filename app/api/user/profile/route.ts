@@ -13,17 +13,24 @@ export async function GET(request: NextRequest) {
     const isAdmin = await isUserAdmin(userId, email, session.emailVerified);
     const plan = profile?.plan || (isAdmin ? "pro" : "free");
 
-    let subscriptionExpiresAt = profile?.subscriptionExpiresAt || null;
-    let billingInterval = profile?.billingInterval || (plan === "pro" ? "annual" : null);
-    let subscriptionStatus = profile?.subscriptionStatus || (plan === "pro" ? "active" : "none");
+    const isSubscribed = plan === "pro" || plan === "standard" || isAdmin;
 
-    // If account has pro access but no expiry date set in legacy records, provide default active expiry (1 year)
-    if (plan === "pro" && !subscriptionExpiresAt) {
+    let subscriptionExpiresAt = profile?.subscriptionExpiresAt || null;
+    let billingInterval = profile?.billingInterval || (plan === "standard" ? "monthly" : (plan === "pro" ? "annual" : null));
+    let subscriptionStatus = profile?.subscriptionStatus || (isSubscribed ? "active" : "none");
+
+    // If account has subscription access (Pro or Standard) but no expiry date set in records, provide default active expiry
+    if (isSubscribed && !subscriptionExpiresAt) {
       const defaultExpiry = new Date();
-      defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
+      if (billingInterval === "monthly" || plan === "standard") {
+        defaultExpiry.setDate(defaultExpiry.getDate() + 30);
+        billingInterval = billingInterval || "monthly";
+      } else {
+        defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
+        billingInterval = billingInterval || "annual";
+      }
       subscriptionExpiresAt = defaultExpiry.toISOString();
       subscriptionStatus = "active";
-      billingInterval = billingInterval || "annual";
     }
 
     // Check if subscription has expired
@@ -99,12 +106,18 @@ export async function POST(request: NextRequest) {
 
     const updatedProfile = await getUserProfile(userId);
     const plan = updatedProfile?.plan || "standard";
+    const isSubscribed = plan === "pro" || plan === "standard" || updatedProfile?.isAdmin || updatedProfile?.admin;
     let subscriptionExpiresAt = updatedProfile?.subscriptionExpiresAt || null;
-    let subscriptionStatus = updatedProfile?.subscriptionStatus || (plan === "pro" ? "active" : "inactive");
+    let billingInterval = updatedProfile?.billingInterval || (plan === "standard" ? "monthly" : (plan === "pro" ? "annual" : null));
+    let subscriptionStatus = updatedProfile?.subscriptionStatus || (isSubscribed ? "active" : "inactive");
 
-    if (plan === "pro" && !subscriptionExpiresAt) {
+    if (isSubscribed && !subscriptionExpiresAt) {
       const defaultExpiry = new Date();
-      defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
+      if (billingInterval === "monthly" || plan === "standard") {
+        defaultExpiry.setDate(defaultExpiry.getDate() + 30);
+      } else {
+        defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
+      }
       subscriptionExpiresAt = defaultExpiry.toISOString();
     }
 

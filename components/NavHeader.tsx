@@ -39,9 +39,10 @@ export default function NavHeader() {
               Become Pro
             </Link>
           )}
-          {user?.isAdmin && (
+          {(user?.isAdmin || user?.plan === "pro" || user?.plan === "standard") && (
             <Link
               href="/admin/properties"
+              id="nav-dashboard-link"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Dashboard

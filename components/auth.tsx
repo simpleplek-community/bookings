@@ -30,6 +30,7 @@ export interface AuthUser {
   displayName: string | null;
   isAnonymous: boolean;
   isAdmin: boolean;
+  plan?: string;
 }
 
 interface AuthContextType {
@@ -267,7 +268,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (result.success && result.data) {
               setUser(prev => prev && prev.uid === firebaseUser.uid ? { 
                 ...prev, 
-                isAdmin: result.data.isAdmin,
+                isAdmin: Boolean(result.data.isAdmin || result.data.plan === "pro" || result.data.plan === "standard"),
+                plan: result.data.plan,
                 displayName: result.data.displayName || prev.displayName
               } : prev);
             }
@@ -288,11 +290,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const res = await fetch(`/api/user/profile?userId=${parsedUser.uid}&email=${parsedUser.email || ""}`);
               const result = await res.json();
               if (result.success && result.data) {
-                const updatedAdmin = result.data.isAdmin;
+                const updatedAdmin = Boolean(result.data.isAdmin || result.data.plan === "pro" || result.data.plan === "standard");
+                const updatedPlan = result.data.plan;
                 const updatedName = result.data.displayName || parsedUser.displayName;
                 setUser(prev => {
                   if (prev && prev.uid === parsedUser.uid) {
-                    const updated = { ...prev, isAdmin: updatedAdmin, displayName: updatedName };
+                    const updated = { ...prev, isAdmin: updatedAdmin, plan: updatedPlan, displayName: updatedName };
                     localStorage.setItem("auth:mock_session", JSON.stringify(updated));
                     return updated;
                   }

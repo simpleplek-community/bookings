@@ -10,6 +10,7 @@ import {
   Clock,
   ExternalLink,
   Globe,
+  House,
   Loader2,
   Mail,
   ShieldCheck,
@@ -200,7 +201,16 @@ export default function ProfilePage() {
   }
 
   // Calculate Subscription Expiration Formatting
-  const isPro = profileData?.plan === "pro" || profileData?.isAdmin;
+  const isSubscribed = Boolean(
+    profileData?.plan === "pro" ||
+    profileData?.plan === "standard" ||
+    profileData?.isAdmin ||
+    profileData?.subscriptionStatus === "active"
+  );
+  const isPro = profileData?.plan === "pro";
+  const isStandard = profileData?.plan === "standard";
+  const hasDashboardAccess = Boolean(profileData?.isAdmin || isSubscribed);
+
   const expiresAtDate = profileData?.subscriptionExpiresAt
     ? new Date(profileData.subscriptionExpiresAt)
     : null;
@@ -222,20 +232,29 @@ export default function ProfilePage() {
       month: "long",
       year: "numeric",
     }).format(expiresAtDate)
-    : "No active expiration date";
+    : "Active cycle";
 
   const billingIntervalLabel =
-    profileData?.billingInterval === "monthly" ? "Monthly (R15 / month)" : "Annual (R150 / year)";
+    profileData?.billingInterval === "monthly" || (!profileData?.billingInterval && isStandard)
+      ? "Monthly (R15 / month)"
+      : "Annual (R150 / year)";
 
   const isFormDirty =
     displayName.trim() !== (profileData?.displayName || user.displayName || "").trim() ||
     bio.trim() !== (profileData?.bio || "").trim();
 
-  const proFeatures = [
-    "Unlimited property listings and deals",
-    "Live 2-way Airbnb & Google Calendar sync",
-    "Exclusive member pricing & package builder",
+  const standardFeatures = [
+    "Host dashboard access and property listings (up to 3 listings)",
+    "Standard stay package creation & booking management",
     "Custom branded host address (subdomain)",
+    "Discounted standard platform booking fee (R25/booking)",
+  ];
+
+  const proFeatures = [
+    "Unlimited property listings and custom deals",
+    "Live 2-way Airbnb & Google Calendar sync",
+    "Exclusive member pricing & Pro package builder",
+    "100% Free booking fees on all stays & estimates (Pro Annual)",
   ];
 
   return (
@@ -251,9 +270,10 @@ export default function ProfilePage() {
               <ArrowLeft className="h-4 w-4" />
               Back to Home
             </Link>
-            {profileData?.isAdmin && (
+            {hasDashboardAccess && (
               <Link
                 href="/admin/properties"
+                id="profile-header-dashboard-link"
                 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
               >
                 Host Dashboard →
@@ -287,10 +307,14 @@ export default function ProfilePage() {
               <div>
                 <span className="text-sm font-medium text-muted-foreground">Membership</span>
                 <div id="subscription-heading" className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-                  {isPro ? "Pro Subscription" : "Standard Plan"}
+                  {isPro
+                    ? "Pro Subscription"
+                    : isStandard
+                    ? "Standard Subscription"
+                    : "Free Tier"}
                 </div>
               </div>
-              {isPro && !isExpired ? (
+              {isSubscribed && !isExpired ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                   Active
@@ -309,6 +333,8 @@ export default function ProfilePage() {
             <div className="mt-2 text-sm text-muted-foreground">
               {isPro
                 ? "You have full Pro privileges including live calendar sync and exclusive packages."
+                : isStandard
+                ? "You have active Standard subscription privileges with host dashboard access and property listings."
                 : "Upgrade to unlock listing capabilities and calendar integration."}
             </div>
           </div>
@@ -317,10 +343,10 @@ export default function ProfilePage() {
             <div className="rounded-lg bg-muted p-4">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Calendar className="h-4 w-4" aria-hidden="true" />
-                <span className="text-xs font-semibold tracking-wide">SUBSCRIPTION EXPIRATION</span>
+                <span className="text-xs font-semibold tracking-wide">SUBSCRIPTION DETAILS</span>
               </div>
               <div className="mt-2 text-sm font-medium">
-                {isPro && expiresAtDate ? (
+                {isSubscribed && expiresAtDate ? (
                   <div className="space-y-1">
                     <div className="text-base font-bold text-foreground">
                       {formattedExpiryDate}
@@ -342,17 +368,26 @@ export default function ProfilePage() {
                       <span>{billingIntervalLabel}</span>
                     </div>
                   </div>
-                ) : isPro ? (
-                  "Active membership — Continuous access"
+                ) : isSubscribed ? (
+                  <div className="space-y-1">
+                    <div className="text-base font-bold text-foreground">
+                      Active membership — Continuous access
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{billingIntervalLabel}</span>
+                    </div>
+                  </div>
                 ) : (
-                  "No active Pro subscription"
+                  "No active subscription"
                 )}
               </div>
             </div>
             <div>
-              <span className="text-sm font-medium text-foreground">Included with Pro:</span>
+              <span className="text-sm font-medium text-foreground">
+                {isPro ? "Included with Pro:" : "Included with Standard Subscription:"}
+              </span>
               <ul className="mt-2 space-y-2">
-                {proFeatures.map((feature) => (
+                {(isPro ? proFeatures : standardFeatures).map((feature) => (
                   <li key={feature} className="flex items-start gap-2 text-sm">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                     <span className="text-foreground/80">{feature}</span>
@@ -370,9 +405,25 @@ export default function ProfilePage() {
                 className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background cursor-pointer"
               >
                 <Zap className="h-4 w-4" aria-hidden="true" />
-                {isPro && !isExpired ? "Manage / Renew Subscription" : "Subscribe to Pro"}
+                {isPro && !isExpired
+                  ? "Manage / Renew Subscription"
+                  : isStandard && !isExpired
+                  ? "Upgrade to Pro"
+                  : "Subscribe to Pro"}
               </button>
             </Link>
+            {hasDashboardAccess && (
+              <Link href="/admin/properties" className="flex-1">
+                <button
+                  type="button"
+                  id="profile-dashboard-btn"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background cursor-pointer"
+                >
+                  <House className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Host Dashboard
+                </button>
+              </Link>
+            )}
             {profileData?.isAdmin && (
               <Link href="/settings/profile" className="flex-1">
                 <button

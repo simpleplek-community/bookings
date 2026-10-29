@@ -639,13 +639,22 @@ export function isSuperAdmin(email?: string | null, emailVerified = false): bool
   return emailVerified && superAdminEmails().includes(normalized);
 }
 
-// A paid Pro membership grants host access even if the isAdmin flag was never written
+// A paid membership (Pro or Standard) grants host access even if the isAdmin flag was never written
 // (or was lost), so renewing members don't lose the dashboard.
-function hasActiveProPlan(profile: any): boolean {
-  if (profile?.plan !== "pro") return false;
-  if (!profile.subscriptionExpiresAt) return true;
+function hasActiveSubscription(profile: any): boolean {
+  if (!profile) return false;
+  const isSubscribedPlan = profile.plan === "pro" || profile.plan === "standard";
+  if (!isSubscribedPlan && !profile.isAdmin && !profile.admin) return false;
+  if (profile.subscriptionStatus === "expired") {
+    if (profile.subscriptionExpiresAt && new Date(profile.subscriptionExpiresAt).getTime() < Date.now()) {
+      return false;
+    }
+  }
+  if (!profile.subscriptionExpiresAt) return isSubscribedPlan || !!profile.isAdmin || !!profile.admin;
   return new Date(profile.subscriptionExpiresAt).getTime() >= Date.now();
 }
+
+export const hasActiveProPlan = hasActiveSubscription;
 
 export async function isUserAdmin(uid: string, email?: string | null, emailVerified = false): Promise<boolean> {
   if (isSuperAdmin(email, emailVerified)) {
@@ -656,7 +665,7 @@ export async function isUserAdmin(uid: string, email?: string | null, emailVerif
   if (isMockMode || !db) {
     const dbData = readMockDb();
     const userProfiles = dbData.userProfiles || {};
-    return !!userProfiles[uid]?.isAdmin || hasActiveProPlan(userProfiles[uid]);
+    return !!userProfiles[uid]?.isAdmin || !!userProfiles[uid]?.admin || hasActiveSubscription(userProfiles[uid]);
   }
 
   if (!uid) return false;
@@ -664,7 +673,7 @@ export async function isUserAdmin(uid: string, email?: string | null, emailVerif
     const doc = await db.collection("users").doc(uid).get();
     if (doc.exists) {
       const data = doc.data();
-      return !!data.isAdmin || hasActiveProPlan(data);
+      return !!data.isAdmin || !!data.admin || hasActiveSubscription(data);
     }
   } catch (err) {
     console.error("[Firebase] isUserAdmin error:", err);
