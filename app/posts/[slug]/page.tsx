@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, AuthProvider } from "@/components/auth";
 import CalendarPicker from "@/components/CalendarPicker";
 import { formatDisplayDate, cn } from "@/lib/utils";
+import { trackPixelEstimate } from "@/lib/client-pixel";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -310,6 +311,14 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
       const estResult = await estRes.json();
       if (estRes.ok && estResult.success && estResult.estimate) {
         setLatestEstimate(estResult.estimate);
+        trackPixelEstimate({
+          estimateId: estResult.estimate.id,
+          total: estResult.estimate.total,
+          propertyId: property.id,
+          propertyName: property.title,
+          fromDate: start.toISOString(),
+          toDate: end.toISOString(),
+        });
       }
     } catch (err: any) {
       console.error("Failed to generate estimate invite:", err);
@@ -388,6 +397,14 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
       const estResult = await estRes.json();
       if (estRes.ok && estResult.success) {
         setLatestEstimate(estResult.estimate);
+        trackPixelEstimate({
+          estimateId: estResult.estimate.id,
+          total: estResult.estimate.total,
+          propertyId: property.id,
+          propertyName: property.title,
+          fromDate: start.toISOString(),
+          toDate: end.toISOString(),
+        });
         router.push(`/estimate/${estResult.estimate.id}`);
       }
     } catch (err: any) {
@@ -899,7 +916,21 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
                   )}
 
                   <Button
+                    id="btn-select-package-pay"
                     className="w-full"
+                    onClick={() => {
+                      if (latestEstimate) {
+                        trackPixelEstimate({
+                          estimateId: latestEstimate.id,
+                          total: latestEstimate.total,
+                          propertyId: property.id,
+                          propertyName: property.title,
+                          fromDate: latestEstimate.fromDate,
+                          toDate: latestEstimate.toDate,
+                          status: latestEstimate.paymentStatus || "pending",
+                        });
+                      }
+                    }}
                     nativeButton={false}
                     render={
                       <Link

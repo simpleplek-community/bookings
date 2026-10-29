@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth, AuthProvider } from "@/components/auth";
 import { formatDisplayDate } from "@/lib/utils";
+import { trackPixelEstimate, trackPixelEvent } from "@/lib/client-pixel";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -121,6 +122,27 @@ function EstimateClientContent({ estimate: initialEstimate, property, selectedPa
 
   const [latestEstimate, setLatestEstimate] = useState<any | null>(null);
   const [latestEstimatePropertyTitle, setLatestEstimatePropertyTitle] = useState<string>("");
+
+  // Track Meta Pixel InitiateCheckout event on the estimate page
+  useEffect(() => {
+    trackPixelEstimate({
+      estimateId: initialEstimate.id,
+      total: initialEstimate.total,
+      propertyId: initialEstimate.propertyId,
+      propertyName: property?.title || "Stay Estimate",
+      fromDate: initialEstimate.fromDate,
+      toDate: initialEstimate.toDate,
+      status: initialEstimate.paymentStatus || "pending",
+    });
+  }, [
+    initialEstimate.id,
+    initialEstimate.total,
+    initialEstimate.propertyId,
+    initialEstimate.fromDate,
+    initialEstimate.toDate,
+    initialEstimate.paymentStatus,
+    property?.title,
+  ]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -436,6 +458,19 @@ function EstimateClientContent({ estimate: initialEstimate, property, selectedPa
       if (!linkRes.ok || !linkResult.status) {
         throw new Error(linkResult.data || "Redirect link generation failed.");
       }
+
+      // Track payment initiation in Meta Pixel
+      trackPixelEvent(
+        "AddPaymentInfo",
+        {
+          content_name: property?.title || "Stay Estimate",
+          content_ids: [estimate.propertyId],
+          content_type: "product",
+          value: finalTotal,
+          currency: "ZAR",
+        },
+        { eventID: `payment_${estimate.id}` }
+      );
 
       window.location.href = linkResult.data.redirectUrl;
     } catch (err: any) {
@@ -1042,6 +1077,7 @@ function EstimateClientContent({ estimate: initialEstimate, property, selectedPa
 
               {!isPaid ? (
                 <Button
+                  id="btn-confirm-pay-yoco"
                   className="w-full"
                   onClick={handlePay}
                   disabled={isPaying || isLoadingPaymentStatus}

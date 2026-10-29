@@ -6,6 +6,7 @@ import { useAuth, AuthProvider } from "@/components/auth";
 import Link from "next/link";
 import CalendarPicker from "@/components/CalendarPicker";
 import { formatDisplayDate } from "@/lib/utils";
+import { trackPixelEstimate, trackPixelEvent } from "@/lib/client-pixel";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -206,7 +207,16 @@ function BookingsCheckoutContent() {
 
         if (propertyId) {
           const found = fetchedProps.find((p: Property) => p.id === propertyId || p.slug === propertyId);
-          if (found) setProperty(found);
+          if (found) {
+            setProperty(found);
+            trackPixelEvent("ViewContent", {
+              content_name: found.title,
+              content_ids: [found.id],
+              content_type: "product",
+              value: found.basePricePerNight,
+              currency: "ZAR",
+            });
+          }
 
           const targetPropId = found ? found.id : propertyId;
 
@@ -271,6 +281,17 @@ function BookingsCheckoutContent() {
         const estResult = await estRes.json();
         if (estResult.success && estResult.data) {
           setLatestEstimate(estResult.data);
+          if (estResult.data.paymentStatus === "pending") {
+            trackPixelEstimate({
+              estimateId: estResult.data.id,
+              total: estResult.data.total,
+              propertyId: estResult.data.propertyId,
+              propertyName: property?.title || estResult.data.propertyId,
+              fromDate: estResult.data.fromDate,
+              toDate: estResult.data.toDate,
+              status: "pending",
+            });
+          }
         }
 
         const profileRes = await fetch(`/api/user/profile?userId=${user.uid}&email=${user.email || ""}`);
@@ -528,6 +549,19 @@ function BookingsCheckoutContent() {
         throw new Error(linkResult.data || "Redirect link generation failed.");
       }
 
+      // Track payment initiation in Meta Pixel
+      trackPixelEvent(
+        "AddPaymentInfo",
+        {
+          content_name: property?.title || "Stay Booking",
+          content_ids: [targetPropertyId],
+          content_type: "product",
+          value: finalTotal,
+          currency: "ZAR",
+        },
+        { eventID: `payment_${estimateId || Date.now()}` }
+      );
+
       setCheckoutLog(prev => [
         ...prev,
         "4. Redirecting to checkout gateway..."
@@ -692,6 +726,7 @@ function BookingsCheckoutContent() {
                     </Button>
                   )}
                   <Button
+                    id="btn-view-estimate-pay"
                     className="shrink-0"
                     nativeButton={false}
                     render={<Link href={`/estimate/${latestEstimate.id}`} />}
@@ -1324,6 +1359,7 @@ function BookingsCheckoutContent() {
             </CardContent>
             <CardFooter>
               <Button
+                id="btn-bookings-confirm-pay"
                 onClick={handleBookNow}
                 disabled={isSubmitting || !!dateConflict}
                 className="w-full"

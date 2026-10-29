@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import NavHeader from "@/components/NavHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { AuthProvider } from "@/components/auth";
+import MetaPixelTracker from "@/components/MetaPixelTracker";
 import "./globals.css";
 import Script from "next/script";
 import { themeInitScript } from "@/lib/theme";
@@ -75,6 +76,7 @@ export default function RootLayout({
       )}
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-200">
         <AuthProvider>
+          <MetaPixelTracker />
           <NavHeader />
           <main className="flex-1 flex flex-col relative">{children}</main>
           <SiteFooter />
