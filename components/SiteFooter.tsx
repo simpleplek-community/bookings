@@ -18,6 +18,9 @@ export default function SiteFooter() {
         </Link>
 
         <nav aria-label="Footer" className="flex items-center gap-5 sm:gap-6">
+          <Link href="/about" className="transition-colors hover:text-foreground">
+            About
+          </Link>
           <Link href="/faq" className="transition-colors hover:text-foreground">
             FAQ
           </Link>
