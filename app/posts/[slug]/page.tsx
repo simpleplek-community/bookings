@@ -93,6 +93,8 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
   const [userPlan, setUserPlan] = useState<string>("standard");
   const [isProUser, setIsProUser] = useState<boolean>(false);
   const [isProForbidden, setIsProForbidden] = useState<boolean>(false);
+  const [proHeroImage, setProHeroImage] = useState<string | null>(null);
+  const [proTitle, setProTitle] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingDates, setIsSavingDates] = useState(false);
@@ -120,6 +122,13 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
 
       if (propRes.status === 403 || propResult.isPro) {
         setIsProForbidden(true);
+        const hero = propResult.heroImage || propResult.image || propResult.images?.[0] || propResult.data?.heroImage || propResult.data?.images?.[0] || null;
+        if (hero) {
+          setProHeroImage(hero);
+        }
+        if (propResult.title || propResult.data?.title) {
+          setProTitle(propResult.title || propResult.data?.title);
+        }
         setProperty(null);
         return;
       }
@@ -127,6 +136,12 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
       if (propResult.success && propResult.data) {
         const found = propResult.data;
         setProperty(found);
+        if (found.images && found.images.length > 0) {
+          setProHeroImage(found.images[0]);
+        }
+        if (found.title) {
+          setProTitle(found.title);
+        }
         setIsProForbidden(false);
 
         const pkgRes = await fetch(`/api/packages?propertyId=${found.id}`);
@@ -429,8 +444,12 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
     "Real-time booking and calendar synchronization",
   ];
 
-  const PRO_HERO_IMAGE =
+  const PRO_FALLBACK_HERO_IMAGE =
     "https://pub-62b3d61e820a424983412732dac4ef9f.r2.dev/hosts/cE63u7tstuREl9Kjy9YPhTnEI513/properties/simple-plek-development/1792160283214_mockup.jpeg";
+  const PRO_HERO_IMAGE =
+    proHeroImage ||
+    (property?.images && property.images.length > 0 ? property.images[0] : null) ||
+    PRO_FALLBACK_HERO_IMAGE;
 
   const isOwner = Boolean(user && property?.hostId && (user.uid === property.hostId || user.email === property.hostId));
   const isProBlocked = isProForbidden || Boolean(property?.isPro && !isProUser && !isOwner);
@@ -441,8 +460,14 @@ function PropertyDetailsContent({ slug }: PropertyDetailsContentProps) {
         <div className="relative h-64 w-full overflow-hidden sm:h-80 lg:sticky lg:top-0 lg:h-screen">
           <img
             src={PRO_HERO_IMAGE}
-            alt="Secluded clifftop retreat villa with an infinity pool overlooking the ocean at dusk"
+            alt={proTitle || property?.title || "Pro Exclusive Destination"}
             className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (target.src !== PRO_FALLBACK_HERO_IMAGE) {
+                target.src = PRO_FALLBACK_HERO_IMAGE;
+              }
+            }}
           />
         </div>
 

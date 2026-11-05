@@ -30,10 +30,15 @@ export async function GET(
       }
 
       if (!isOwner && !isProViewer) {
+        const heroImage = property.images && property.images.length > 0 ? property.images[0] : null;
         return NextResponse.json({
           success: false,
           error: "This listing is exclusively available to Pro members. Upgrade to Pro to view.",
-          isPro: true
+          isPro: true,
+          title: property.title || property.name || null,
+          heroImage,
+          image: heroImage,
+          images: heroImage ? [heroImage] : [],
         }, { status: 403 });
       }
     }
