@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateBookingStatus, getEstimate, updateEstimateStatus, createBooking, listBookings, promoteUserToAdmin, getProperty, getBooking, updateBooking } from "@/lib/firebase";
+import { updateBookingStatus, getEstimate, updateEstimateStatus, createBooking, listBookings, promoteUserToAdmin, getProperty, getBooking, updateBooking, getPackage } from "@/lib/firebase";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { isPaymentsLive } from "@/lib/auth";
 import { createHmac, timingSafeEqual } from "crypto";
@@ -86,8 +86,33 @@ export async function POST(request: NextRequest) {
       if (eventType === "payment.succeeded" || eventType === "checkout.succeeded" || eventType === "charge.succeeded") {
         const bk = await getBooking(bookingId);
         if (bk) {
-          const paidAddons = Array.from(new Set([...(bk.paidAddons || []), metadata.addonId || metadata.packageType].filter(Boolean)));
-          await updateBooking(bookingId, { paidAddons });
+          const addonId = metadata.addonId || metadata.packageType;
+          const pkg = addonId ? await getPackage(addonId) : null;
+          const amount = paidCents ? paidCents / 100 : (pkg?.price || Number(metadata.amount) || 0);
+          const pkgName = pkg?.name || pkg?.title || metadata.packageName || "Add-on Package";
+
+          const newPurchase = {
+            id: payload.id || body.id || `pur_${Date.now()}`,
+            type: "addon",
+            packageId: addonId,
+            name: pkgName,
+            description: pkg?.description || "",
+            amount: Number(amount),
+            currency: "ZAR",
+            status: "paid",
+            createdAt: new Date().toISOString(),
+            purchasedBy: customerName || customerEmail || metadata.userEmail || userId || bk.customerEmail || "Guest",
+            reference: payload.id || body.id || metadata.checkoutId || "",
+            paymentMethod: "Yoco"
+          };
+
+          const existingPurchases = Array.isArray(bk.purchases) ? bk.purchases : [];
+          const isDuplicate = existingPurchases.some(
+            (p: any) => (p.reference && p.reference === newPurchase.reference) || (p.id && p.id === newPurchase.id)
+          );
+          const purchases = isDuplicate ? existingPurchases : [...existingPurchases, newPurchase];
+          const paidAddons = Array.from(new Set([...(bk.paidAddons || []), addonId].filter(Boolean)));
+          await updateBooking(bookingId, { purchases, paidAddons });
         }
       }
       return NextResponse.json({ success: true, message: "Add-on payment processed." });
@@ -109,7 +134,31 @@ export async function POST(request: NextRequest) {
           console.warn(`[Yoco Webhook] Payment for booking ${bookingId} below booking total; ignoring.`);
           return NextResponse.json({ success: false, error: "Amount mismatch" }, { status: 400 });
         }
-        await updateBookingStatus(bookingId, "paid");
+        
+        const existingPurchases = Array.isArray(bk.purchases) ? bk.purchases : [];
+        const hasStayPurchase = existingPurchases.some((p: any) => p.type === "stay");
+        const updates: Record<string, any> = { paymentStatus: "paid" };
+        if (!hasStayPurchase) {
+          const pkg = bk.packageId ? await getPackage(bk.packageId) : null;
+          updates.purchases = [
+            ...existingPurchases,
+            {
+              id: payload.id || body.id || `pur_stay_${Date.now()}`,
+              type: "stay",
+              packageId: bk.packageId || null,
+              name: pkg?.name || "Stay Reservation",
+              description: "Accommodation reservation",
+              amount: Number(bk.total),
+              currency: "ZAR",
+              status: "paid",
+              createdAt: new Date().toISOString(),
+              purchasedBy: customerName || customerEmail || bk.customerName || bk.customerEmail || "Customer",
+              reference: payload.id || body.id || "",
+              paymentMethod: "Yoco"
+            }
+          ];
+        }
+        await updateBooking(bookingId, updates);
         if (!bk.confirmationEmailSent) {
           try {
             await sendBookingConfirmationEmail({ ...bk, paymentStatus: "paid" });

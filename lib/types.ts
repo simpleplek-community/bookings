@@ -47,6 +47,21 @@ export interface PropertyPackage {
   isPro?: boolean;
 }
 
+export interface BookingPurchase {
+  id: string;
+  type: "stay" | "addon";
+  packageId?: string | null;
+  name: string;
+  description?: string;
+  amount: number;
+  currency: string;
+  status: "paid" | "pending" | "failed" | "refunded";
+  createdAt: string;
+  purchasedBy?: string | { uid?: string; name?: string; email?: string };
+  reference?: string;
+  paymentMethod?: string;
+}
+
 export type PackageCategory = "standard" | "addon" | "hosted" | "special" | "pro";
 
 export function formatZar(value: number): string {

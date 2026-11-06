@@ -96,7 +96,22 @@ export async function POST(request: NextRequest) {
       paymentStatus: paymentStatus || "paid",
       estimateId: estimate.id,
       guests: estimate.guests || [],
-      guestsDetails: estimate.guestsDetails || {}
+      guestsDetails: estimate.guestsDetails || {},
+      purchases: [
+        {
+          id: `pur_stay_${Date.now()}`,
+          type: "stay",
+          packageId: estimate.packageId || null,
+          name: (estimate as any).packageName || "Stay Reservation",
+          description: "Accommodation reservation",
+          amount: Number(estimate.total),
+          currency: "ZAR",
+          status: paymentStatus || "paid",
+          createdAt: new Date().toISOString(),
+          purchasedBy: targetName || targetEmail,
+          paymentMethod: "Yoco"
+        }
+      ]
     } as any);
 
     // Update estimate status to paid ONLY if nightly stay

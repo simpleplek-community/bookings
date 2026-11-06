@@ -227,7 +227,16 @@ async function processGenerateRequest(
         packageType: type,
         bookingId: bookingId || "",
         estimateId: estimateId || "",
-        ...(isAddon ? { intent: "addon", addonId: pkg.id } : {})
+        ...(isAddon
+          ? {
+              intent: "addon",
+              addonId: pkg.id,
+              packageName: pkg.name || pkg.title || type,
+              amount: amountInCents / 100,
+              userId: userId || "",
+              userEmail: userEmail || (booking ? booking.customerEmail : ""),
+            }
+          : {})
       },
       siteUrl
     });

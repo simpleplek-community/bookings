@@ -55,13 +55,23 @@ export async function createCheckout({ amountInCents, description, metadata, sit
   if (!successUrl) {
     if (intent === "subscription" && userId) {
       successUrl = `${siteUrl}/?payment=success&intent=subscription&userId=${userId}&plan=${plan}`;
+    } else if (intent === "addon" && bookingId) {
+      successUrl = `${siteUrl}/bookings/${bookingId}?payment=success&intent=addon${metadata?.addonId ? `&addonId=${metadata.addonId}` : ""}`;
     } else {
       successUrl = `${siteUrl}/?payment=success${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`;
     }
   }
 
-  const cancelUrl = process.env.YOCO_CANCEL_URL || `${siteUrl}/?payment=cancel${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`;
-  const failureUrl = process.env.YOCO_FAILURE_URL || `${siteUrl}/?payment=failed${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`;
+  const cancelUrl = process.env.YOCO_CANCEL_URL || (
+    intent === "addon" && bookingId
+      ? `${siteUrl}/bookings/${bookingId}?payment=cancel&intent=addon`
+      : `${siteUrl}/?payment=cancel${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`
+  );
+  const failureUrl = process.env.YOCO_FAILURE_URL || (
+    intent === "addon" && bookingId
+      ? `${siteUrl}/bookings/${bookingId}?payment=failed&intent=addon`
+      : `${siteUrl}/?payment=failed${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`
+  );
 
   const body = {
     amount: amountInCents,

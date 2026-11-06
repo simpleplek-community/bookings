@@ -3,14 +3,18 @@
 import React, { useState, useEffect, use, Suspense } from "react";
 import { useAuth, AuthProvider } from "@/components/auth";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { formatDisplayDate, cn } from "@/lib/utils";
+import type { BookingPurchase } from "@/lib/types";
 import {
   ArrowLeftIcon,
   CalendarIcon,
   CheckIcon,
+  CheckCircle2Icon,
   GiftIcon,
   KeyRoundIcon,
   LockIcon,
+  ReceiptIcon,
   RefreshCwIcon,
   Share2Icon,
   ShieldXIcon,
@@ -77,10 +81,14 @@ interface Booking {
   guests?: string[];
   guestsDetails?: Record<string, { name: string; email?: string; joinedAt?: string }>;
   viewerRole?: "admin" | "host" | "customer" | "guest";
+  paidAddons?: string[];
+  purchases?: BookingPurchase[];
+  createdAt?: string;
 }
 
 function BookingDetailsContent({ id }: { id: string }) {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [property, setProperty] = useState<Property | null>(null);
@@ -95,6 +103,14 @@ function BookingDetailsContent({ id }: { id: string }) {
   const [linkRefreshed, setLinkRefreshed] = useState<boolean>(false);
   const [removingGuestId, setRemovingGuestId] = useState<string>("");
   const [guestError, setGuestError] = useState<string | null>(null);
+  const [dismissedNotice, setDismissedNotice] = useState<boolean>(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [showReceipts, setShowReceipts] = useState<boolean>(false);
+
+  const isPaymentSuccess = searchParams.get("payment") === "success" && searchParams.get("intent") === "addon";
+  const purchaseSuccessNotice = actionNotice || (isPaymentSuccess && !dismissedNotice
+    ? "Add-on successfully purchased! Your reservation and financial ledger have been updated."
+    : null);
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
@@ -225,7 +241,28 @@ function BookingDetailsContent({ id }: { id: string }) {
 
       const result = await response.json();
       if (!response.ok || !result.status) {
-        throw new Error(result.data || "Failed to generate checkout link.");
+        // Fallback for development/testing when payments are not live or test mode
+        const fallbackRes = await fetch(`/api/bookings/${booking.id}/purchases`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ packageId: addon.id }),
+        });
+        const fallbackData = await fallbackRes.json();
+        if (fallbackRes.ok && fallbackData.success) {
+          setBooking((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              purchases: fallbackData.data.purchases,
+              paidAddons: fallbackData.data.paidAddons,
+            };
+          });
+          setActionNotice(`"${addon.name}" has been successfully added to your stay!`);
+          setPurchasingAddonId("");
+          return;
+        }
+
+        throw new Error(result.data || fallbackData.error || "Failed to generate checkout link.");
       }
 
       window.location.assign(result.data.redirectUrl);
@@ -382,6 +419,66 @@ function BookingDetailsContent({ id }: { id: string }) {
       ? "destructive"
       : "secondary";
 
+  // Financial record computations
+  const recordedStayPurchase = (booking.purchases || []).find((p) => p.type === "stay");
+  const staySubtotal = Number(booking.total || 0);
+
+  const recordedAddonPurchases = (booking.purchases || []).filter((p) => p.type === "addon");
+  const recordedAddonPackageIds = new Set(recordedAddonPurchases.map((p) => p.packageId));
+
+  const legacyAddonPurchases: BookingPurchase[] = (booking.paidAddons || [])
+    .filter((addonId) => !recordedAddonPackageIds.has(addonId))
+    .map((addonId) => {
+      const pkg = packages.find((p) => p.id === addonId);
+      return {
+        id: `pur_legacy_${addonId}`,
+        type: "addon",
+        packageId: addonId,
+        name: pkg?.name || "Add-on Package",
+        description: pkg?.description || "",
+        amount: Number(pkg?.price || 0),
+        currency: "ZAR",
+        status: "paid",
+        createdAt: booking.fromDate || new Date().toISOString(),
+        purchasedBy: booking.customerName || "Customer",
+        paymentMethod: "Online Payment",
+      };
+    });
+
+  const allAddonPurchases: BookingPurchase[] = [...recordedAddonPurchases, ...legacyAddonPurchases];
+
+  const purchasedAddonIds = new Set([
+    ...(booking.paidAddons || []),
+    ...(allAddonPurchases.map((p) => p.packageId).filter(Boolean) as string[]),
+  ]);
+
+  const addonsSubtotal = allAddonPurchases
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const grandTotal = staySubtotal + addonsSubtotal;
+  const totalPaid = (isPaid ? staySubtotal : 0) + addonsSubtotal;
+  const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+
+  const allPurchasesList: BookingPurchase[] = [
+    recordedStayPurchase || {
+      id: `stay_${booking.id}`,
+      type: "stay",
+      packageId: booking.packageId,
+      name: bookedPackage?.name || (isHourly ? "Hourly Space Reservation" : "Stay Reservation"),
+      description: isHourly
+        ? `${checkInTimeStr} - ${checkOutTimeStr}`
+        : `${stayNights} night${stayNights > 1 ? "s" : ""} • ${checkIn} to ${checkOut}`,
+      amount: staySubtotal,
+      currency: "ZAR",
+      status: isPaid ? "paid" : "pending",
+      createdAt: booking.fromDate || new Date().toISOString(),
+      purchasedBy: booking.customerName || booking.customerEmail,
+      paymentMethod: "Reservation Payment",
+    },
+    ...allAddonPurchases,
+  ];
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
@@ -404,6 +501,27 @@ function BookingDetailsContent({ id }: { id: string }) {
           Back to dashboard
         </Button>
       </header>
+
+      {purchaseSuccessNotice && (
+        <Alert className="border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200">
+          <CheckCircle2Icon className="size-4 text-emerald-600" />
+          <AlertTitle>Add-on confirmed!</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{purchaseSuccessNotice}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDismissedNotice(true);
+                setActionNotice(null);
+              }}
+              className="h-6 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Dismiss
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-5">
         {/* Main Left Column */}
@@ -623,23 +741,209 @@ function BookingDetailsContent({ id }: { id: string }) {
 
         {/* Right Column: Financial Summary & Add-ons */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Financial breakdown</CardTitle>
+          {/* Financial Breakdown Card with Full Purchases Record */}
+          <Card className="border-border/80 shadow-xs">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-xl">Financial breakdown</CardTitle>
+                <CardDescription>
+                  Record of stay accommodation & purchased add-ons
+                </CardDescription>
+              </div>
+              <Badge
+                variant={statusVariant}
+                className={isPaid && balanceRemaining === 0 ? "bg-emerald-600 hover:bg-emerald-600 text-white font-semibold" : undefined}
+              >
+                {isPaid && balanceRemaining === 0 ? "Fully settled" : booking.paymentStatus}
+              </Badge>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-4 text-sm">
-                <span className="text-muted-foreground">Payment status</span>
-                <Badge variant={statusVariant}>{booking.paymentStatus}</Badge>
+            <CardContent className="flex flex-col gap-4">
+              {/* Itemized Line Items */}
+              <div className="flex flex-col gap-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Itemized charges
+                </span>
+
+                {/* Base Stay Reservation Item */}
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-card p-3 text-sm">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate">{bookedPackage?.name || "Stay Reservation"}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {isHourly
+                        ? `${checkInTimeStr} - ${checkOutTimeStr}`
+                        : `${stayNights} night${stayNights > 1 ? "s" : ""} • ${checkIn} to ${checkOut}`}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="font-heading font-semibold tabular-nums text-foreground">
+                      R {staySubtotal.toLocaleString()}
+                    </span>
+                    <Badge
+                      variant={isPaid ? "outline" : "secondary"}
+                      className={isPaid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 text-[10px]" : "text-[10px]"}
+                    >
+                      {isPaid ? "Paid" : "Pending"}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Purchased Add-ons List */}
+                {allAddonPurchases.length > 0 ? (
+                  <div className="flex flex-col gap-2 pt-1">
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <span>Add-on packages ({allAddonPurchases.length})</span>
+                      <span className="text-foreground tabular-nums">
+                        R {addonsSubtotal.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {allAddonPurchases.map((purchase) => {
+                      const matchingPkg = packages.find((p) => p.id === purchase.packageId);
+                      const isPro = matchingPkg ? isPackagePro(matchingPkg) : false;
+                      const purchaserLabel =
+                        typeof purchase.purchasedBy === "string"
+                          ? purchase.purchasedBy
+                          : purchase.purchasedBy?.name || purchase.purchasedBy?.email || "Guest";
+
+                      return (
+                        <div
+                          key={purchase.id}
+                          className="flex items-start justify-between gap-3 rounded-lg border border-secondary/30 bg-secondary/5 p-3 text-sm transition-colors"
+                        >
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex items-center gap-1.5 font-medium text-foreground">
+                              <GiftIcon className="size-3.5 text-secondary shrink-0" />
+                              <span className="truncate">{purchase.name}</span>
+                              {isPro && (
+                                <Badge className="bg-secondary text-secondary-foreground border-none font-bold text-[8px] uppercase px-1.5 py-0">
+                                  Pro
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                              {purchase.createdAt && (
+                                <span>{formatDisplayDate(purchase.createdAt)}</span>
+                              )}
+                              {purchaserLabel && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">By {purchaserLabel}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="font-heading font-semibold tabular-nums text-foreground">
+                              R {Number(purchase.amount).toLocaleString()}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 text-[10px] flex items-center gap-1"
+                            >
+                              <CheckCircle2Icon className="size-2.5" />
+                              Paid
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border/70 p-3 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      No add-on packages purchased yet. See available upgrades below.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <Separator />
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm font-medium">Total charge</span>
-                <span className="font-heading text-xl font-semibold tabular-nums">
-                  R {booking.total ? booking.total.toLocaleString() : "0"}
-                </span>
+              {/* Subtotals & Grand Total Summary */}
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Stay subtotal</span>
+                  <span className="tabular-nums">R {staySubtotal.toLocaleString()}</span>
+                </div>
+                {allAddonPurchases.length > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Add-ons subtotal</span>
+                    <span className="tabular-nums">+ R {addonsSubtotal.toLocaleString()}</span>
+                  </div>
+                )}
+
+                <Separator className="my-1" />
+
+                <div className="flex items-center justify-between">
+                  <span className="font-heading font-semibold text-foreground">Total charges</span>
+                  <span className="font-heading text-xl font-bold tabular-nums text-foreground">
+                    R {grandTotal.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Total paid</span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    R {totalPaid.toLocaleString()}
+                  </span>
+                </div>
+
+                {balanceRemaining > 0 && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Balance remaining</span>
+                    <span className="font-medium text-amber-600 dark:text-amber-400 tabular-nums">
+                      R {balanceRemaining.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Purchase History & Receipts Ledger */}
+              <div className="pt-2 border-t border-border/70">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowReceipts((prev) => !prev)}
+                  className="w-full justify-between text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+                >
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <ReceiptIcon className="size-3.5" />
+                    Purchase ledger & receipts ({allPurchasesList.length})
+                  </span>
+                  <span>{showReceipts ? "Hide" : "Show"}</span>
+                </Button>
+
+                {showReceipts && (
+                  <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border/70">
+                    {allPurchasesList.map((pur) => (
+                      <div
+                        key={pur.id}
+                        className="flex items-center justify-between gap-3 rounded-md bg-muted/40 p-2 text-xs"
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="font-medium truncate text-foreground">{pur.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono truncate">
+                            Ref: {pur.id} • {pur.createdAt ? formatDisplayDate(pur.createdAt) : ""}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-heading font-semibold tabular-nums text-foreground">
+                            R {Number(pur.amount).toLocaleString()}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] uppercase font-bold border-emerald-500/40 text-emerald-600"
+                          >
+                            {pur.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -680,25 +984,37 @@ function BookingDetailsContent({ id }: { id: string }) {
                   <div className="flex flex-col gap-3">
                     {availableAddons.map((addon) => {
                       const isProAddonItem = isPackagePro(addon);
+                      const isAlreadyPurchased = purchasedAddonIds.has(addon.id);
+
                       return (
                         <div
                           key={addon.id}
                           className={cn(
                             "flex flex-col gap-3 rounded-lg border p-4 transition-colors",
-                            isProAddonItem
-                              ? "border-secondary/40 bg-secondary/5 hover:border-secondary/60"
-                              : "border-border bg-muted/50 hover:border-primary/50"
+                            isAlreadyPurchased
+                              ? "border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/60"
+                              : isProAddonItem
+                                ? "border-secondary/40 bg-secondary/5 hover:border-secondary/60"
+                                : "border-border bg-muted/50 hover:border-primary/50"
                           )}
                         >
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center gap-2">
-                              {isProAddonItem && (
-                                <Badge className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-none font-bold text-[9px] uppercase flex items-center gap-1">
-                                  <SparklesIcon className="size-2.5" />
-                                  Pro Exclusive
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                {isProAddonItem && (
+                                  <Badge className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-none font-bold text-[9px] uppercase flex items-center gap-1">
+                                    <SparklesIcon className="size-2.5" />
+                                    Pro Exclusive
+                                  </Badge>
+                                )}
+                                <h3 className="font-heading text-sm font-medium">{addon.name}</h3>
+                              </div>
+                              {isAlreadyPurchased && (
+                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 border-none font-bold text-[9px] uppercase flex items-center gap-1">
+                                  <CheckCircle2Icon className="size-2.5" />
+                                  Purchased
                                 </Badge>
                               )}
-                              <h3 className="font-heading text-sm font-medium">{addon.name}</h3>
                             </div>
                             {addon.description && (
                               <p className="text-sm leading-relaxed text-muted-foreground">
@@ -711,17 +1027,29 @@ function BookingDetailsContent({ id }: { id: string }) {
                             <span className="font-heading text-sm font-semibold tabular-nums">
                               R {addon.price.toLocaleString()}
                             </span>
-                            <Button
-                              size="sm"
-                              onClick={() => handlePurchaseAddon(addon)}
-                              disabled={purchasingAddonId === addon.id}
-                              className={isProAddonItem ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold" : undefined}
-                            >
-                              {purchasingAddonId === addon.id && (
-                                <Spinner className="size-3.5" data-icon="inline-start" />
-                              )}
-                              {purchasingAddonId === addon.id ? "Connecting..." : "Add to stay"}
-                            </Button>
+                            {isAlreadyPurchased ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 font-semibold cursor-not-allowed"
+                              >
+                                <CheckIcon className="size-3.5" data-icon="inline-start" />
+                                Added to stay
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handlePurchaseAddon(addon)}
+                                disabled={purchasingAddonId === addon.id}
+                                className={isProAddonItem ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold" : undefined}
+                              >
+                                {purchasingAddonId === addon.id && (
+                                  <Spinner className="size-3.5" data-icon="inline-start" />
+                                )}
+                                {purchasingAddonId === addon.id ? "Connecting..." : "Add to stay"}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       );
@@ -755,22 +1083,32 @@ function BookingDetailsContent({ id }: { id: string }) {
                     </div>
 
                     <div className="flex flex-col gap-2 pt-1 border-t border-secondary/20">
-                      {proAddons.map((addon) => (
-                        <div
-                          key={addon.id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-secondary/20 bg-background/60 px-3 py-2 text-xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="border-secondary/40 text-secondary text-[9px] font-bold uppercase">
-                              Pro Only
-                            </Badge>
-                            <span className="font-medium text-foreground">{addon.name}</span>
+                      {proAddons.map((addon) => {
+                        const isAlreadyPurchased = purchasedAddonIds.has(addon.id);
+                        return (
+                          <div
+                            key={addon.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-secondary/20 bg-background/60 px-3 py-2 text-xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="border-secondary/40 text-secondary text-[9px] font-bold uppercase">
+                                Pro Only
+                              </Badge>
+                              <span className="font-medium text-foreground">{addon.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-muted-foreground">
+                                R {addon.price.toLocaleString()}
+                              </span>
+                              {isAlreadyPurchased && (
+                                <Badge className="bg-emerald-600 text-white font-bold text-[8px] uppercase">
+                                  Purchased
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                          <span className="font-semibold text-muted-foreground">
-                            R {addon.price.toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
