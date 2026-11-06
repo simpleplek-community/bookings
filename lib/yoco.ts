@@ -3,11 +3,11 @@ const CHECKOUT_URL = "https://payments.yoco.com/api/checkouts";
 export interface CreateCheckoutProps {
   amountInCents: number;
   description: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   siteUrl?: string;
 }
 
-export function parsePriceToCents(pkg: any): number {
+export function parsePriceToCents(pkg: { amountInCents?: number; amount?: number; price?: string | number }): number {
   if (typeof pkg.amountInCents === "number" && pkg.amountInCents > 0) {
     return Math.round(pkg.amountInCents);
   }
@@ -56,7 +56,8 @@ export async function createCheckout({ amountInCents, description, metadata, sit
     if (intent === "subscription" && userId) {
       successUrl = `${siteUrl}/?payment=success&intent=subscription&userId=${userId}&plan=${plan}`;
     } else if (intent === "addon" && bookingId) {
-      successUrl = `${siteUrl}/bookings/${bookingId}?payment=success&intent=addon${metadata?.addonId ? `&addonId=${metadata.addonId}` : ""}`;
+      const tx = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      successUrl = `${siteUrl}/bookings/${bookingId}?payment=success&intent=addon${metadata?.addonId ? `&addonId=${metadata.addonId}` : ""}&tx=${tx}`;
     } else {
       successUrl = `${siteUrl}/?payment=success${bookingId ? `&bookingId=${bookingId}` : ""}${estimateId ? `&estimateId=${estimateId}` : ""}`;
     }

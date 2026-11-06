@@ -14,6 +14,7 @@ import {
   GiftIcon,
   KeyRoundIcon,
   LockIcon,
+  PlusIcon,
   ReceiptIcon,
   RefreshCwIcon,
   Share2Icon,
@@ -129,18 +130,23 @@ function BookingDetailsContent({ id }: { id: string }) {
         const payment = searchParams.get("payment");
         const intent = searchParams.get("intent");
         const addonId = searchParams.get("addonId");
+        const tx = searchParams.get("tx");
 
         if (payment === "success" && intent === "addon" && addonId) {
-          const isAlreadyRecorded =
-            (bkData.paidAddons && bkData.paidAddons.includes(addonId)) ||
-            (bkData.purchases && bkData.purchases.some((p: BookingPurchase) => p.packageId === addonId));
+          const isAlreadyRecorded = tx
+            ? bkData.purchases && bkData.purchases.some((p: BookingPurchase) => (p.reference && p.reference === tx) || p.id === `pur_${tx}` || p.id === tx)
+            : (bkData.paidAddons && bkData.paidAddons.includes(addonId) && bkData.purchases && bkData.purchases.some((p: BookingPurchase) => p.packageId === addonId));
 
           if (!isAlreadyRecorded) {
             try {
               const confirmRes = await fetch(`/api/bookings/${id}/purchases`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ packageId: addonId, paymentStatus: "paid" }),
+                body: JSON.stringify({
+                  packageId: addonId,
+                  paymentStatus: "paid",
+                  reference: tx || undefined,
+                }),
               });
               const confirmData = await confirmRes.json();
               if (confirmRes.ok && confirmData.success && confirmData.data) {
@@ -478,11 +484,6 @@ function BookingDetailsContent({ id }: { id: string }) {
     });
 
   const allAddonPurchases: BookingPurchase[] = [...recordedAddonPurchases, ...legacyAddonPurchases];
-
-  const purchasedAddonIds = new Set([
-    ...(booking.paidAddons || []),
-    ...(allAddonPurchases.map((p) => p.packageId).filter(Boolean) as string[]),
-  ]);
 
   const addonsSubtotal = allAddonPurchases
     .filter((p) => p.status === "paid")
@@ -1016,14 +1017,15 @@ function BookingDetailsContent({ id }: { id: string }) {
                   <div className="flex flex-col gap-3">
                     {availableAddons.map((addon) => {
                       const isProAddonItem = isPackagePro(addon);
-                      const isAlreadyPurchased = purchasedAddonIds.has(addon.id);
+                      const purchasedCount = allAddonPurchases.filter((p) => p.packageId === addon.id).length;
+                      const hasPurchased = purchasedCount > 0;
 
                       return (
                         <div
                           key={addon.id}
                           className={cn(
                             "flex flex-col gap-3 rounded-lg border p-4 transition-colors",
-                            isAlreadyPurchased
+                            hasPurchased
                               ? "border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/60"
                               : isProAddonItem
                                 ? "border-secondary/40 bg-secondary/5 hover:border-secondary/60"
@@ -1041,10 +1043,10 @@ function BookingDetailsContent({ id }: { id: string }) {
                                 )}
                                 <h3 className="font-heading text-sm font-medium">{addon.name}</h3>
                               </div>
-                              {isAlreadyPurchased && (
+                              {hasPurchased && (
                                 <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 border-none font-bold text-[9px] uppercase flex items-center gap-1">
                                   <CheckCircle2Icon className="size-2.5" />
-                                  Purchased
+                                  {purchasedCount > 1 ? `${purchasedCount} Added` : "Added"}
                                 </Badge>
                               )}
                             </div>
@@ -1056,32 +1058,41 @@ function BookingDetailsContent({ id }: { id: string }) {
                           </div>
                           <Separator />
                           <div className="flex items-center justify-between gap-4">
-                            <span className="font-heading text-sm font-semibold tabular-nums">
-                              R {addon.price.toLocaleString()}
-                            </span>
-                            {isAlreadyPurchased ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled
-                                className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 font-semibold cursor-not-allowed"
-                              >
-                                <CheckIcon className="size-3.5" data-icon="inline-start" />
-                                Added to stay
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => handlePurchaseAddon(addon)}
-                                disabled={purchasingAddonId === addon.id}
-                                className={isProAddonItem ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold" : undefined}
-                              >
-                                {purchasingAddonId === addon.id && (
-                                  <Spinner className="size-3.5" data-icon="inline-start" />
-                                )}
-                                {purchasingAddonId === addon.id ? "Connecting..." : "Add to stay"}
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="font-heading text-sm font-semibold tabular-nums">
+                                R {addon.price.toLocaleString()}
+                              </span>
+                              {hasPurchased && (
+                                <span className="text-xs text-muted-foreground font-medium">
+                                  ({purchasedCount} in stay)
+                                </span>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handlePurchaseAddon(addon)}
+                              disabled={purchasingAddonId === addon.id}
+                              variant={hasPurchased ? "outline" : undefined}
+                              className={cn(
+                                isProAddonItem && !hasPurchased
+                                  ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold"
+                                  : undefined,
+                                hasPurchased
+                                  ? "border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-medium"
+                                  : undefined
+                              )}
+                            >
+                              {purchasingAddonId === addon.id ? (
+                                <Spinner className="size-3.5" data-icon="inline-start" />
+                              ) : hasPurchased ? (
+                                <PlusIcon className="size-3.5" data-icon="inline-start" />
+                              ) : null}
+                              {purchasingAddonId === addon.id
+                                ? "Connecting..."
+                                : hasPurchased
+                                  ? "Add another"
+                                  : "Add to stay"}
+                            </Button>
                           </div>
                         </div>
                       );
@@ -1116,7 +1127,7 @@ function BookingDetailsContent({ id }: { id: string }) {
 
                     <div className="flex flex-col gap-2 pt-1 border-t border-secondary/20">
                       {proAddons.map((addon) => {
-                        const isAlreadyPurchased = purchasedAddonIds.has(addon.id);
+                        const proPurchasedCount = allAddonPurchases.filter((p) => p.packageId === addon.id).length;
                         return (
                           <div
                             key={addon.id}
@@ -1132,9 +1143,9 @@ function BookingDetailsContent({ id }: { id: string }) {
                               <span className="font-semibold text-muted-foreground">
                                 R {addon.price.toLocaleString()}
                               </span>
-                              {isAlreadyPurchased && (
+                              {proPurchasedCount > 0 && (
                                 <Badge className="bg-emerald-600 text-white font-bold text-[8px] uppercase">
-                                  Purchased
+                                  {proPurchasedCount > 1 ? `${proPurchasedCount} Added` : "Purchased"}
                                 </Badge>
                               )}
                             </div>

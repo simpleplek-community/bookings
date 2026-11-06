@@ -111,8 +111,11 @@ export async function POST(
       session.uid ||
       "Guest";
 
+    const txReference = body.reference || body.tx;
+    const purchaseId = body.id || (txReference ? `pur_${txReference}` : `pur_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+
     const newPurchase: BookingPurchase = {
-      id: body.id || `pur_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      id: purchaseId,
       type: "addon",
       packageId: pkg.id,
       name: pkg.name || pkg.title || "Add-on Package",
@@ -122,15 +125,16 @@ export async function POST(
       status: "paid",
       createdAt: new Date().toISOString(),
       purchasedBy: purchaserName,
+      reference: txReference || "",
       paymentMethod: body.paymentMethod || (isPaymentsLive() ? "Yoco Online Payment" : "Development Mock"),
     };
 
     const existingPurchases: BookingPurchase[] = Array.isArray(booking.purchases) ? booking.purchases : [];
 
-    // Check if this add-on was already recorded to avoid duplicates
-    const alreadyRecorded = existingPurchases.some(
-      (p) => p.packageId === pkg.id && p.type === "addon"
-    );
+    // Deduplicate only if this specific transaction was already recorded (e.g. page refresh)
+    const alreadyRecorded = txReference
+      ? existingPurchases.some((p) => (p.reference && p.reference === txReference) || p.id === purchaseId)
+      : (body.id ? existingPurchases.some((p) => p.id === body.id) : false);
 
     if (alreadyRecorded) {
       return NextResponse.json({
