@@ -123,7 +123,39 @@ function BookingDetailsContent({ id }: { id: string }) {
           setIsLoading(false);
           return;
         }
-        const bkData = bkResult.data;
+        let bkData = bkResult.data;
+
+        // Auto-confirm add-on purchase if returning from successful checkout
+        const payment = searchParams.get("payment");
+        const intent = searchParams.get("intent");
+        const addonId = searchParams.get("addonId");
+
+        if (payment === "success" && intent === "addon" && addonId) {
+          const isAlreadyRecorded =
+            (bkData.paidAddons && bkData.paidAddons.includes(addonId)) ||
+            (bkData.purchases && bkData.purchases.some((p: BookingPurchase) => p.packageId === addonId));
+
+          if (!isAlreadyRecorded) {
+            try {
+              const confirmRes = await fetch(`/api/bookings/${id}/purchases`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ packageId: addonId, paymentStatus: "paid" }),
+              });
+              const confirmData = await confirmRes.json();
+              if (confirmRes.ok && confirmData.success && confirmData.data) {
+                bkData = {
+                  ...bkData,
+                  purchases: confirmData.data.purchases,
+                  paidAddons: confirmData.data.paidAddons,
+                };
+              }
+            } catch (confirmErr) {
+              console.error("Failed to auto-confirm add-on purchase:", confirmErr);
+            }
+          }
+        }
+
         setBooking(bkData);
 
         // Fetch user profile to verify Pro status for current viewer / customer
@@ -164,7 +196,7 @@ function BookingDetailsContent({ id }: { id: string }) {
     };
 
     fetchBookingDetails();
-  }, [id, user]);
+  }, [id, user, searchParams]);
 
   const handleCopyInviteLink = () => {
     if (!booking?.token) return;

@@ -83,8 +83,22 @@ export async function POST(
       }
     }
 
-    // If payments are live, only host or admin can manually attach an add-on without checkout
-    if (isPaymentsLive() && access.role !== "host" && access.role !== "admin") {
+    const host = request.headers.get("host") || "";
+    const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
+    const isTestKey = Boolean(process.env.YOCO_SEC?.trim().startsWith("sk_test_"));
+    const isClientConfirm = body.paymentStatus === "paid" || body.paymentStatus === "success";
+
+    // Allow recording if payments are not live, or in test environment/localhost (where webhooks cannot reach),
+    // or when confirming a successful checkout redirect, or when performed by host/admin
+    const canRecord =
+      !isPaymentsLive() ||
+      isTestKey ||
+      isLocalhost ||
+      access.role === "host" ||
+      access.role === "admin" ||
+      isClientConfirm;
+
+    if (!canRecord) {
       return NextResponse.json(
         { success: false, error: "Add-ons must be purchased through online checkout." },
         { status: 402 }
@@ -98,7 +112,7 @@ export async function POST(
       "Guest";
 
     const newPurchase: BookingPurchase = {
-      id: `pur_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      id: body.id || `pur_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: "addon",
       packageId: pkg.id,
       name: pkg.name || pkg.title || "Add-on Package",
@@ -108,20 +122,55 @@ export async function POST(
       status: "paid",
       createdAt: new Date().toISOString(),
       purchasedBy: purchaserName,
-      paymentMethod: isPaymentsLive() ? "Host Override" : "Development Mock",
+      paymentMethod: body.paymentMethod || (isPaymentsLive() ? "Yoco Online Payment" : "Development Mock"),
     };
 
     const existingPurchases: BookingPurchase[] = Array.isArray(booking.purchases) ? booking.purchases : [];
-    const purchases = [...existingPurchases, newPurchase];
+
+    // Check if this add-on was already recorded to avoid duplicates
+    const alreadyRecorded = existingPurchases.some(
+      (p) => p.packageId === pkg.id && p.type === "addon"
+    );
+
+    if (alreadyRecorded) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          purchases: existingPurchases,
+          paidAddons: booking.paidAddons || [pkg.id],
+        },
+      });
+    }
+
+    const hasStayPurchase = existingPurchases.some((p) => p.type === "stay");
+    const purchasesList = [...existingPurchases];
+    if (!hasStayPurchase && (booking.paymentStatus === "paid" || booking.paymentStatus === "success")) {
+      const stayPkg = booking.packageId ? await getPackage(booking.packageId) : null;
+      purchasesList.unshift({
+        id: `pur_stay_${booking.id}`,
+        type: "stay",
+        packageId: booking.packageId || null,
+        name: stayPkg?.name || "Stay Reservation",
+        description: "Accommodation reservation",
+        amount: Number(booking.total || 0),
+        currency: "ZAR",
+        status: "paid",
+        createdAt: booking.fromDate || new Date().toISOString(),
+        purchasedBy: booking.customerName || booking.customerEmail || "Customer",
+        paymentMethod: "Reservation Payment",
+      });
+    }
+
+    purchasesList.push(newPurchase);
     const paidAddons = Array.from(new Set([...(booking.paidAddons || []), pkg.id]));
 
-    await updateBooking(id, { purchases, paidAddons });
+    await updateBooking(id, { purchases: purchasesList, paidAddons });
 
     return NextResponse.json({
       success: true,
       data: {
         purchase: newPurchase,
-        purchases,
+        purchases: purchasesList,
         paidAddons,
       },
     });
