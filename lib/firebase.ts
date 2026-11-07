@@ -1175,6 +1175,25 @@ export async function updateUserProfile(uid: string, data: any): Promise<boolean
   }
 }
 
+export async function listAllUserProfiles(): Promise<Record<string, any>> {
+  const db = getFirestore();
+  if (isMockMode || !db) {
+    const dbData = readMockDb();
+    return dbData.userProfiles || {};
+  }
+  try {
+    const snapshot = await db.collection("users").get();
+    const result: Record<string, any> = {};
+    snapshot.docs.forEach((doc: any) => {
+      result[doc.id] = { id: doc.id, ...doc.data() };
+    });
+    return result;
+  } catch (err) {
+    console.error("[Firebase] listAllUserProfiles error:", err);
+    return readMockDb().userProfiles || {};
+  }
+}
+
 export async function getHostIdBySubdomain(subdomain: string): Promise<string | null> {
   const db = getFirestore();
   if (isMockMode || !db) {

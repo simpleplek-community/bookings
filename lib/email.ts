@@ -434,3 +434,220 @@ export async function sendGuestJoinedEmails(params: {
     console.error("[Resend] Error in sendGuestJoinedEmails:", error);
   }
 }
+
+/**
+ * Sends a payment request reminder email to a Pro member whose subscription has lapsed.
+ * Can be sent repeatedly on a schedule or manually triggered.
+ */
+export async function sendSubscriptionLapsedEmail(params: {
+  email: string;
+  name?: string;
+  plan?: string;
+  billingInterval?: "monthly" | "annual" | null;
+  subscriptionExpiresAt?: string | null;
+  daysLapsed?: number;
+  amountDueZar?: number;
+  renewalUrl?: string;
+  reminderCount?: number;
+}): Promise<boolean> {
+  const {
+    email,
+    name = "Host",
+    plan = "pro",
+    billingInterval = "annual",
+    subscriptionExpiresAt,
+    daysLapsed,
+    amountDueZar = billingInterval === "monthly" ? 15 : 150,
+    renewalUrl = "https://simpleplek.co.za/subscribe",
+    reminderCount = 1
+  } = params;
+
+  if (!email) {
+    console.warn("[Resend] Cannot send subscription lapsed email: missing email address.");
+    return false;
+  }
+
+  const formattedExpiry = subscriptionExpiresAt
+    ? formatStayDate(subscriptionExpiresAt)
+    : "Recently";
+
+  const reminderBadge = reminderCount > 1
+    ? `<div style="display: inline-block; background-color: #fee2e2; color: #991b1b; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 9999px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Payment Reminder #${reminderCount}</div>`
+    : "";
+
+  const daysText = typeof daysLapsed === "number" && daysLapsed > 0
+    ? `${daysLapsed} day${daysLapsed === 1 ? "" : "s"} overdue`
+    : "Overdue";
+
+  const emailBody = `
+    ${reminderBadge}
+    <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
+    <p>Your <strong>Simpleplek Pro subscription</strong> has lapsed, and your account has been temporarily <strong>suspended</strong>.</p>
+    
+    <div style="background-color: #fff1f2; border: 1px solid #fecdd3; padding: 14px 16px; border-radius: 8px; margin: 16px 0; color: #9f1239; font-size: 13px; line-height: 1.5;">
+      <strong>⚠️ Account Status: Suspended</strong><br/>
+      While your account is suspended:
+      <ul style="margin: 6px 0 0 0; padding-left: 18px;">
+        <li>Your property listings are hidden from public searches and guest bookings.</li>
+        <li>Two-way calendar synchronization with Airbnb and Google Calendar is paused.</li>
+        <li>Exclusive member pricing and Pro package entitlements are unavailable.</li>
+      </ul>
+    </div>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 20px 0;">
+      <h3 style="margin-top: 0; font-size: 13px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Subscription Overview</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Plan:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right;">${plan === "pro" ? "Pro Membership" : "Standard Membership"}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Billing Cycle:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right; text-transform: capitalize;">${escapeHtml(billingInterval || "annual")}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Lapsed On:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right;">${formattedExpiry} (${daysText})</td>
+        </tr>
+        <tr style="border-top: 1px solid #e2e8f0;">
+          <td style="padding: 10px 0 0 0; font-weight: bold;">Amount Due:</td>
+          <td style="padding: 10px 0 0 0; font-weight: bold; text-align: right; color: #0d9488; font-size: 16px;">R ${amountDueZar.toLocaleString()}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p>To reactivate your account immediately and restore all your host tools and listing visibility, please settle your subscription renewal using the link below:</p>
+  `;
+
+  const subject = reminderCount > 1
+    ? `Action Required: Simpleplek Pro Subscription Lapsed (Reminder #${reminderCount})`
+    : `Action Required: Your Simpleplek Pro Subscription Has Lapsed - Account Suspended`;
+
+  const html = emailShell(
+    "Subscription Renewal Required",
+    emailBody,
+    renewalUrl,
+    `Renew Subscription (R ${amountDueZar.toLocaleString()})`
+  );
+
+  return sendEmail([email], subject, html, "subscription-lapsed");
+}
+
+/**
+ * Sends a payment request email for an outstanding package (e.g. for a completed stay
+ * or an unpaid add-on package selected by the host from the dashboard).
+ */
+export async function sendOutstandingPackagePaymentRequestEmail(params: {
+  customerEmail: string;
+  customerName?: string;
+  propertyTitle: string;
+  propertyLocation?: string;
+  bookingId?: string;
+  fromDate?: string;
+  toDate?: string;
+  isCompleted?: boolean;
+  packageName: string;
+  packageDescription?: string;
+  packageCategory?: string;
+  amountZar: number;
+  hostName?: string;
+  hostEmail?: string;
+  paymentUrl: string;
+  note?: string;
+}): Promise<boolean> {
+  const {
+    customerEmail,
+    customerName = "Guest",
+    propertyTitle,
+    propertyLocation,
+    bookingId,
+    fromDate,
+    toDate,
+    isCompleted = true,
+    packageName,
+    packageDescription,
+    packageCategory,
+    amountZar,
+    hostName,
+    paymentUrl,
+    note
+  } = params;
+
+  if (!customerEmail) {
+    console.warn("[Resend] Cannot send package payment request email: missing customerEmail.");
+    return false;
+  }
+
+  const datesText = fromDate && toDate
+    ? `${formatStayDate(fromDate)} – ${formatStayDate(toDate)}`
+    : "";
+
+  const introText = isCompleted
+    ? `Your stay at <strong>${escapeHtml(propertyTitle)}</strong> has completed, but payment for the <strong>${escapeHtml(packageName)}</strong> package remains outstanding.`
+    : `Payment has been requested for the <strong>${escapeHtml(packageName)}</strong> package for your stay at <strong>${escapeHtml(propertyTitle)}</strong>.`;
+
+  const noteBlock = note
+    ? `
+      <div style="background-color: #f1f5f9; border-left: 4px solid #0d9488; padding: 12px 14px; margin: 16px 0; border-radius: 4px; font-size: 13px; color: #334155;">
+        <strong style="color: #0f172a;">Note from ${escapeHtml(hostName || "Host")}:</strong><br/>
+        "${escapeHtml(note)}"
+      </div>
+    `
+    : "";
+
+  const detailsTable = `
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 20px 0;">
+      <h3 style="margin-top: 0; font-size: 13px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Outstanding Invoice Details</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Property:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(propertyTitle)}${propertyLocation ? ` (${escapeHtml(propertyLocation)})` : ""}</td>
+        </tr>
+        ${bookingId ? `
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Booking Reference:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right; font-family: monospace;">${escapeHtml(bookingId)}</td>
+        </tr>` : ""}
+        ${datesText ? `
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Stay Dates:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(datesText)}</td>
+        </tr>` : ""}
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Package:</td>
+          <td style="padding: 6px 0; font-weight: bold; text-align: right;">${escapeHtml(packageName)}${packageCategory ? ` (${escapeHtml(packageCategory)})` : ""}</td>
+        </tr>
+        ${packageDescription ? `
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;" colspan="2">
+            <span style="font-size: 12px; color: #64748b; font-style: italic;">${escapeHtml(packageDescription)}</span>
+          </td>
+        </tr>` : ""}
+        <tr style="border-top: 1px solid #e2e8f0;">
+          <td style="padding: 10px 0 0 0; font-weight: bold;">Outstanding Amount:</td>
+          <td style="padding: 10px 0 0 0; font-weight: bold; text-align: right; color: #0d9488; font-size: 16px;">R ${Number(amountZar || 0).toLocaleString()}</td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  const body = `
+    <p>Hi <strong>${escapeHtml(customerName)}</strong>,</p>
+    <p>${introText}</p>
+    ${noteBlock}
+    ${detailsTable}
+    <p>Please click the button below to settle this payment securely online via Yoco.</p>
+  `;
+
+  const subject = `Payment Request: Outstanding Package - ${packageName} (${propertyTitle})`;
+
+  const html = emailShell(
+    "Package Payment Request",
+    body,
+    paymentUrl,
+    `Pay Outstanding Package (R ${Number(amountZar || 0).toLocaleString()})`
+  );
+
+  return sendEmail([customerEmail], subject, html, "package-payment-request");
+}
+

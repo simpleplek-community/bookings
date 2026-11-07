@@ -14,12 +14,16 @@ import {
   Globe,
   House,
   Lock,
+  Mail,
   Plus,
+  Receipt,
+  ShieldAlert,
   Sparkles,
   TriangleAlert,
   Zap,
 } from "lucide-react";
 import { publicHost, publicUrl } from "@/utils/subdomain";
+import { SendPackagePaymentRequestModal } from "@/components/SendPackagePaymentRequestModal";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +44,7 @@ export default function AdminPropertiesPage() {
   const [packages, setPackages] = useState<PropertyPackage[]>([]);
   const [userPlan, setUserPlan] = useState<string>("standard");
   const [subdomain, setSubdomain] = useState<string>("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
   const [isLoading, setIsLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showSuggested, setShowSuggested] = useState(false);
@@ -47,6 +52,11 @@ export default function AdminPropertiesPage() {
   // Side sheet state
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+
+  // Payment Request modal state
+  const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);
+  const [paymentModalPropertyId, setPaymentModalPropertyId] = useState<string | null>(null);
+  const [paymentModalPackageId, setPaymentModalPackageId] = useState<string | null>(null);
 
   const fetchPropertiesAndPackages = useCallback(async () => {
     if (!user) return;
@@ -75,6 +85,7 @@ export default function AdminPropertiesPage() {
       if (profileResult.success && profileResult.data) {
         setUserPlan(profileResult.data.plan || "standard");
         setSubdomain(profileResult.data.subdomain || "");
+        setSubscriptionStatus(profileResult.data.subscriptionStatus || "active");
       }
     } catch (err: unknown) {
       console.error("Failed to load properties and packages:", err);
@@ -82,6 +93,12 @@ export default function AdminPropertiesPage() {
       setIsLoading(false);
     }
   }, [user]);
+
+  const openPaymentRequestModal = (propertyId?: string, packageId?: string) => {
+    setPaymentModalPropertyId(propertyId || null);
+    setPaymentModalPackageId(packageId || null);
+    setIsPaymentRequestOpen(true);
+  };
 
   useEffect(() => {
     if (user) {
@@ -344,7 +361,13 @@ export default function AdminPropertiesPage() {
     );
   }
 
-  if (!user || !user.isAdmin) {
+  const isSuspended =
+    subscriptionStatus === "expired" ||
+    subscriptionStatus === "inactive" ||
+    subscriptionStatus === "none" ||
+    (!user?.isAdmin && userPlan !== "pro" && userPlan !== "standard");
+
+  if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -354,19 +377,18 @@ export default function AdminPropertiesPage() {
                 <EmptyMedia variant="icon">
                   <Lock />
                 </EmptyMedia>
-                <EmptyTitle>Access denied</EmptyTitle>
+                <EmptyTitle>Sign in required</EmptyTitle>
                 <EmptyDescription>
-                  Administrative privileges are required to access this portal. Please sign
-                  in with an administrator account to continue.
+                  Please sign in to access your properties dashboard and manage your bookings.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent className="w-full">
                 <Button
                   className="w-full"
                   nativeButton={false}
-                  render={<Link href="/login" />}
+                  render={<Link href="/login?redirect=/admin/properties" />}
                 >
-                  Sign in as admin
+                  Sign in
                 </Button>
                 <Button
                   variant="outline"
@@ -384,9 +406,88 @@ export default function AdminPropertiesPage() {
     );
   }
 
+  // If the user has no properties, is not an admin, and is not a host with a suspended/lapsed account
+  if (!user.isAdmin && properties.length === 0 && !isSuspended) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Lock />
+                </EmptyMedia>
+                <EmptyTitle>Host membership required</EmptyTitle>
+                <EmptyDescription>
+                  Host dashboard access requires an active Pro subscription. Subscribe to unlock listings, calendar sync, and packages.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent className="w-full flex flex-col gap-2">
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90"
+                  nativeButton={false}
+                  render={<Link href="/subscribe" />}
+                >
+                  Subscribe to Pro
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  nativeButton={false}
+                  render={<Link href="/profile" />}
+                >
+                  View Profile
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  nativeButton={false}
+                  render={<Link href="/" />}
+                >
+                  Back to home
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f6faf9] dark:bg-background text-[#12302c] dark:text-foreground">
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+        {/* Account Suspended Warning Banner */}
+        {isSuspended && (
+          <div className="rounded-2xl border border-red-300 dark:border-red-900 bg-red-50/80 dark:bg-red-950/40 p-4 sm:p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">
+                    Account Suspended — Pro Subscription Lapsed
+                  </h3>
+                  <p className="text-xs sm:text-sm text-red-800 dark:text-red-300 mt-1 leading-relaxed">
+                    Public listing visibility and calendar synchronization are paused until renewed. Settle your subscription payment to restore full host privileges, or select an outstanding package below to send payment requests.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link href="/subscribe">
+                  <Button size="sm" variant="destructive" className="text-xs">
+                    Renew Subscription
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button size="sm" variant="outline" className="text-xs">
+                    Subscription Details
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header matching prototype */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/40 pb-6">
           <div className="flex flex-col gap-1.5">
@@ -431,11 +532,26 @@ export default function AdminPropertiesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground shadow-2xs">
-              <Zap className="h-3.5 w-3.5 text-amber-500" />
-              Plan: {userPlan === "pro" ? "Professional" : "Standard Pro"}
-            </span>
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {isSuspended ? (
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-3 py-1 text-xs font-semibold text-red-700 dark:text-red-400 shadow-2xs">
+                <ShieldAlert className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                Account Suspended
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground shadow-2xs">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                Plan: {userPlan === "pro" ? "Professional" : "Standard Pro"}
+              </span>
+            )}
+            <Button
+              type="button"
+              onClick={() => openPaymentRequestModal()}
+              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-emerald-600/30 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 px-3.5 text-sm font-semibold shadow-2xs cursor-pointer"
+            >
+              <Mail className="h-4 w-4" />
+              Send Payment Request
+            </Button>
             <Link
               href="/admin/properties/new"
               className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -522,6 +638,7 @@ export default function AdminPropertiesPage() {
                 property={property}
                 packages={byProperty[property.id] ?? []}
                 onOpenPackages={() => openPackagesSheet(property.id)}
+                onSendPaymentRequest={() => openPaymentRequestModal(property.id)}
               />
             ))}
           </div>
@@ -539,6 +656,15 @@ export default function AdminPropertiesPage() {
         onToggle={handleTogglePackage}
         onReassign={handleReassignPackage}
         userPlan={userPlan}
+      />
+
+      <SendPackagePaymentRequestModal
+        isOpen={isPaymentRequestOpen}
+        onClose={() => setIsPaymentRequestOpen(false)}
+        properties={properties}
+        packages={packages}
+        initialPropertyId={paymentModalPropertyId}
+        initialPackageId={paymentModalPackageId}
       />
     </div>
   );

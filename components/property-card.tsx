@@ -2,16 +2,17 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Clock, Moon, Package, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, Clock, Mail, Moon, Package, Plus, Sparkles } from "lucide-react";
 import { formatZar, rateLabel, resolveBookingType, type Property, type PropertyPackage } from "@/lib/types";
 
 interface PropertyCardProps {
   property: Property;
   packages: PropertyPackage[];
   onOpenPackages: () => void;
+  onSendPaymentRequest?: () => void;
 }
 
-export function PropertyCard({ property, packages, onOpenPackages }: PropertyCardProps) {
+export function PropertyCard({ property, packages, onOpenPackages, onSendPaymentRequest }: PropertyCardProps) {
   const bookingType = resolveBookingType(property);
   const isHourly = bookingType === "hourly";
   const ModeIcon = isHourly ? Clock : Moon;
@@ -104,13 +105,26 @@ export function PropertyCard({ property, packages, onOpenPackages }: PropertyCar
           )}
         </div>
 
-        <Link
-          href={`/admin/properties/${property.id || property.slug}`}
-          className="inline-flex h-9.5 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Configure
-          <ArrowRight className="h-4 w-4" />
-        </Link>
+        <div className="flex items-center gap-2">
+          {onSendPaymentRequest && (
+            <button
+              type="button"
+              onClick={onSendPaymentRequest}
+              title="Send payment request for an outstanding package"
+              className="inline-flex h-9.5 items-center justify-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 px-3 text-xs font-semibold transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-950/60 cursor-pointer"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Request Payment
+            </button>
+          )}
+          <Link
+            href={`/admin/properties/${property.id || property.slug}`}
+            className="flex-1 inline-flex h-9.5 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Configure
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
     </article>
   );

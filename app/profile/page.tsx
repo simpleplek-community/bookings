@@ -13,6 +13,7 @@ import {
   House,
   Loader2,
   Mail,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   User,
@@ -20,7 +21,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { publicUrl } from "@/utils/subdomain";
 
@@ -37,6 +38,8 @@ interface UserProfileData {
   subdomain: string;
   displayName: string;
   bio: string;
+  lastLapsedReminderSentAt?: string | null;
+  lapsedReminderCount?: number;
 }
 
 export default function ProfilePage() {
@@ -50,6 +53,8 @@ export default function ProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -142,6 +147,43 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSendPaymentReminder = async () => {
+    if (!user) return;
+    setIsSendingReminder(true);
+    setReminderStatus(null);
+    try {
+      const res = await fetch("/api/admin/reminders/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.uid, email: user.email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send payment reminder email.");
+      }
+      setReminderStatus({
+        type: "success",
+        text: `Payment request email sent successfully to ${user.email || "your inbox"}!`,
+      });
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              lastLapsedReminderSentAt: data.sentAt || new Date().toISOString(),
+              lapsedReminderCount: data.reminderCount || (prev.lapsedReminderCount || 0) + 1,
+            }
+          : null
+      );
+      setTimeout(() => setReminderStatus(null), 5000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error sending payment request email.";
+      setReminderStatus({ type: "error", text: msg });
+      setTimeout(() => setReminderStatus(null), 5000);
+    } finally {
+      setIsSendingReminder(false);
+    }
+  };
+
   if (authLoading || (user && isLoadingProfile)) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
@@ -209,7 +251,7 @@ export default function ProfilePage() {
   );
   const isPro = profileData?.plan === "pro";
   const isStandard = profileData?.plan === "standard";
-  const hasDashboardAccess = Boolean(profileData?.isAdmin || isSubscribed);
+  const hasDashboardAccess = Boolean(profileData?.isAdmin || isSubscribed || profileData?.plan === "pro" || profileData?.plan === "standard");
 
   const expiresAtDate = profileData?.subscriptionExpiresAt
     ? new Date(profileData.subscriptionExpiresAt)
@@ -217,6 +259,14 @@ export default function ProfilePage() {
 
   const now = new Date();
   const isExpired = expiresAtDate ? expiresAtDate.getTime() <= now.getTime() : false;
+
+  // Account Suspended flag: User has no active subscription or subscription has lapsed/expired
+  const isSuspended =
+    !isSubscribed ||
+    isExpired ||
+    profileData?.subscriptionStatus === "expired" ||
+    profileData?.subscriptionStatus === "inactive" ||
+    profileData?.subscriptionStatus === "none";
 
   // Days remaining calculation
   let daysRemaining: number | null = null;
@@ -297,11 +347,34 @@ export default function ProfilePage() {
           </Alert>
         )}
 
+        {reminderStatus && (
+          <Alert variant={reminderStatus.type === "success" ? "default" : "destructive"}>
+            <AlertDescription>{reminderStatus.text}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Account Suspended Banner */}
+        {isSuspended && (
+          <Alert variant="destructive" className="border-red-300 dark:border-red-900 bg-red-50/80 dark:bg-red-950/40 text-red-900 dark:text-red-200">
+            <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+            <div className="ml-2">
+              <AlertTitle className="font-semibold text-red-900 dark:text-red-200">
+                Account Suspended — Pro Subscription {isExpired ? "Lapsed" : "Required"}
+              </AlertTitle>
+              <AlertDescription className="text-xs sm:text-sm text-red-800 dark:text-red-300 mt-1 leading-relaxed">
+                {isExpired
+                  ? "Your Pro membership subscription has lapsed. Public listing visibility, instant bookings, and live calendar sync are paused. Settle your payment or renew your subscription to reactivate your host account."
+                  : "You do not have an active subscription and your host account is currently suspended. Subscribe to a Pro plan to activate your dashboard, publish properties, and unlock packages."}
+              </AlertDescription>
+            </div>
+          </Alert>
+        )}
+
         <section
           aria-labelledby="subscription-heading"
           className="relative overflow-hidden rounded-xl border border-border bg-card shadow-sm"
         >
-          <div className="h-1 w-full bg-primary" />
+          <div className={`h-1 w-full ${isSuspended ? "bg-red-500" : "bg-primary"}`} />
           <div className="p-6 border-b border-border">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -319,19 +392,17 @@ export default function ProfilePage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                   Active
                 </span>
-              ) : isExpired ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-600 dark:bg-red-400" />
-                  Expired
-                </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                  Free Tier
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-600 dark:bg-red-400 animate-pulse" />
+                  Account Suspended
                 </span>
               )}
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
-              {isPro
+              {isSuspended
+                ? "Your host privileges and listing sync are paused due to a lapsed or missing subscription. Renew to restore full access."
+                : isPro
                 ? "You have full Pro privileges including live calendar sync and exclusive packages."
                 : isStandard
                 ? "You have active Standard subscription privileges with host dashboard access and property listings."
@@ -346,24 +417,45 @@ export default function ProfilePage() {
                 <span className="text-xs font-semibold tracking-wide">SUBSCRIPTION DETAILS</span>
               </div>
               <div className="mt-2 text-sm font-medium">
-                {isSubscribed && expiresAtDate ? (
+                {isSuspended ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-semibold text-base">
+                      <ShieldAlert className="h-4 w-4 shrink-0" />
+                      Account Suspended
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-medium text-red-600 dark:text-red-400">
+                        {isExpired && formattedExpiryDate
+                          ? `Subscription lapsed on ${formattedExpiryDate}`
+                          : "No active subscription — Account suspended"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                      Host dashboard listings, calendar sync, and member pricing are disabled until your subscription is renewed or outstanding package payments are settled.
+                    </p>
+                    {profileData?.lastLapsedReminderSentAt && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span>
+                          Payment request sent {new Date(profileData.lastLapsedReminderSentAt).toLocaleDateString()}
+                          {profileData.lapsedReminderCount ? ` (Reminder #${profileData.lapsedReminderCount})` : ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : isSubscribed && expiresAtDate ? (
                   <div className="space-y-1">
                     <div className="text-base font-bold text-foreground">
                       {formattedExpiryDate}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" />
-                      {!isExpired ? (
-                        <span className="font-medium text-primary">
-                          {daysRemaining !== null
-                            ? `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
-                            : "Active cycle"}
-                        </span>
-                      ) : (
-                        <span className="font-medium text-red-600 dark:text-red-400">
-                          Expired on {formattedExpiryDate}
-                        </span>
-                      )}
+                      <span className="font-medium text-primary">
+                        {daysRemaining !== null
+                          ? `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
+                          : "Active cycle"}
+                      </span>
                       <span>•</span>
                       <span>{billingIntervalLabel}</span>
                     </div>
@@ -378,7 +470,9 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 ) : (
-                  "No active subscription"
+                  <div className="text-red-600 dark:text-red-400 font-medium">
+                    No active subscription
+                  </div>
                 )}
               </div>
             </div>
@@ -397,23 +491,42 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border bg-muted p-6 sm:flex-row">
-            <Link href="/subscribe" className="flex-1">
+          <div className="flex flex-col gap-3 border-t border-border bg-muted p-6 sm:flex-row flex-wrap">
+            <Link href="/subscribe" className="flex-1 min-w-[200px]">
               <button
                 type="button"
                 id="manage-subscription-btn"
                 className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background cursor-pointer"
               >
                 <Zap className="h-4 w-4" aria-hidden="true" />
-                {isPro && !isExpired
+                {isSuspended
+                  ? "Settle Payment / Reactivate Account"
+                  : isPro && !isExpired
                   ? "Manage / Renew Subscription"
                   : isStandard && !isExpired
                   ? "Upgrade to Pro"
                   : "Subscribe to Pro"}
               </button>
             </Link>
+
+            {isSuspended && (
+              <button
+                type="button"
+                onClick={handleSendPaymentReminder}
+                disabled={isSendingReminder}
+                className="inline-flex h-9 flex-1 min-w-[200px] items-center justify-center gap-2 whitespace-nowrap rounded-md border border-red-300 dark:border-red-800 bg-card px-4 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSendingReminder ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+                Email Me Payment Request
+              </button>
+            )}
+
             {hasDashboardAccess && (
-              <Link href="/admin/properties" className="flex-1">
+              <Link href="/admin/properties" className="flex-1 min-w-[160px]">
                 <button
                   type="button"
                   id="profile-dashboard-btn"
@@ -425,7 +538,7 @@ export default function ProfilePage() {
               </Link>
             )}
             {profileData?.isAdmin && (
-              <Link href="/settings/profile" className="flex-1">
+              <Link href="/settings/profile" className="flex-1 min-w-[180px]">
                 <button
                   type="button"
                   className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background cursor-pointer"

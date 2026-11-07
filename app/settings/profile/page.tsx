@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth";
-import { ArrowLeft, ArrowUpRight, Check, Loader2, Lock } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Loader2, Lock, ShieldAlert } from "lucide-react";
 import { SubdomainField } from "@/components/SubdomainField";
 import { PublicPagePreview, type HostProfileData } from "@/components/PublicPagePreview";
 import { ConfirmAddressChangeDialog } from "@/components/ConfirmAddressChangeDialog";
@@ -116,7 +116,7 @@ export default function ProfileSettingsPage() {
     );
   }
 
-  if (!user || !user.isAdmin) {
+  if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -126,23 +126,69 @@ export default function ProfileSettingsPage() {
                 <EmptyMedia variant="icon">
                   <Lock />
                 </EmptyMedia>
-                <EmptyTitle>Access denied</EmptyTitle>
+                <EmptyTitle>Sign in required</EmptyTitle>
                 <EmptyDescription>
-                  Administrative privileges are required to access this portal. Please sign
-                  in with an administrator account to continue.
+                  Please sign in to configure your host profile and public address settings.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent className="w-full">
                 <Button
                   className="w-full"
                   nativeButton={false}
-                  render={<Link href="/login" />}
+                  render={<Link href="/login?redirect=/settings/profile" />}
                 >
-                  Sign in as admin
+                  Sign in
                 </Button>
                 <Button
                   variant="outline"
                   className="w-full"
+                  nativeButton={false}
+                  render={<Link href="/" />}
+                >
+                  Back to home
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!user.isAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-md border-red-200 dark:border-red-900/60 shadow-md">
+          <CardContent>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="bg-red-500/10 text-red-600 dark:text-red-400">
+                  <ShieldAlert />
+                </EmptyMedia>
+                <EmptyTitle className="text-red-950 dark:text-red-100">Account Suspended</EmptyTitle>
+                <EmptyDescription>
+                  Access to your public host address portal is suspended because your Pro subscription has lapsed or is inactive. Please renew your subscription to restore your host address settings and public profile.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent className="w-full flex flex-col gap-2">
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90"
+                  nativeButton={false}
+                  render={<Link href="/subscribe" />}
+                >
+                  Renew Pro Subscription
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  nativeButton={false}
+                  render={<Link href="/profile" />}
+                >
+                  View Account & Profile
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
                   nativeButton={false}
                   render={<Link href="/" />}
                 >
