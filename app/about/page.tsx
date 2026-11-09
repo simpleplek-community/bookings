@@ -147,7 +147,7 @@ export default function AboutPage() {
               </h2>
 
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Connect your Airbnb, VRBO, or Google Calendar iCal feed once. Dates lock
+                Connect your Airbnb or Google Calendar iCal feed once. Dates lock
                 automatically across every channel—guaranteeing zero double bookings for multi-night
                 stays or precision hourly workshop slots.
               </p>
