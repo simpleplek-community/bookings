@@ -111,6 +111,20 @@ export default function CalendarPicker({
     return null;
   };
 
+  const isValidCheckoutDate = (checkInDateStr: string, checkoutDateStr: string): boolean => {
+    if (checkoutDateStr <= checkInDateStr) return false;
+    let current = new Date(checkInDateStr);
+    const target = new Date(checkoutDateStr);
+    while (current < target) {
+      const checkB = getBookingForDate(current.getFullYear(), current.getMonth(), current.getDate());
+      if (checkB) {
+        return false;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return true;
+  };
+
   // Generate calendar days for a given month and year
   const getDaysInMonth = (year: number, month: number) => {
     const firstDayIndex = new Date(year, month, 1).getDay();
@@ -141,7 +155,25 @@ export default function CalendarPicker({
       const booking = getBookingForDate(year, month, day);
       const isBooked = !!booking;
       const isPast = dateStr < todayStr;
-      const isDisabled = isBooked || isPast;
+
+      // Check if this date is the check-in (arrival) date of an existing reservation
+      const isBookingCheckIn =
+        bookingType !== "hourly" &&
+        bookings.some((b) => {
+          if (b.paymentStatus === "failed" || b.paymentStatus === "refunded") return false;
+          return b.fromDate.split("T")[0] === dateStr;
+        });
+
+      // When the guest has selected a check-in date and is picking a check-out date:
+      const isSelectingCheckout = Boolean(
+        bookingType !== "hourly" && selectedFromDate && !selectedToDate
+      );
+      const isCheckoutCandidate = Boolean(
+        isSelectingCheckout && isValidCheckoutDate(selectedFromDate, dateStr)
+      );
+
+      // A date is disabled if in the past, or if booked and NOT a valid check-out option
+      const isDisabled = isPast || (isBooked && !isCheckoutCandidate);
 
       const isSelectedFrom = selectedFromDate === dateStr;
       const isSelectedTo = selectedToDate === dateStr;
@@ -156,45 +188,42 @@ export default function CalendarPicker({
 
       // Click handler for day selection
       const handleDayClick = () => {
-        if (isBooked || isPast) return;
+        if (isPast) return;
 
         setRangeError(null);
 
         if (bookingType === "hourly") {
+          if (isBooked) return;
           onChange(dateStr, dateStr);
         } else {
           // Selection Logic
           if (!selectedFromDate || (selectedFromDate && selectedToDate)) {
-            // Select Check-in
+            // Select Check-in:
+            if (isBooked) {
+              if (isBookingCheckIn) {
+                setRangeError(
+                  "This date is only available for check-out. Please select an available check-in date first."
+                );
+              }
+              return;
+            }
             onChange(dateStr, "");
           } else {
-            // Select Check-out
+            // Select Check-out:
             if (dateStr > selectedFromDate) {
-              // Ensure no booked days inside the selected range
-              let hasOverlap = false;
-              let current = new Date(selectedFromDate);
-              const target = new Date(dateStr);
-
-              while (current < target) {
-                const checkB = getBookingForDate(current.getFullYear(), current.getMonth(), current.getDate());
-                if (checkB) {
-                  hasOverlap = true;
-                  break;
-                }
-                current.setDate(current.getDate() + 1);
-              }
-
-              if (hasOverlap) {
+              if (isValidCheckoutDate(selectedFromDate, dateStr)) {
+                onChange(selectedFromDate, dateStr);
+              } else {
                 setRangeError(
                   "The selected range overlaps with an existing booking. Please choose another range."
                 );
                 onChange(dateStr, "");
-              } else {
-                onChange(selectedFromDate, dateStr);
               }
             } else {
-              // Selected a date before check-in date: reset check-in to this date
-              onChange(dateStr, "");
+              // Selected a date before or equal to check-in date: reset check-in to this date if unbooked
+              if (!isBooked) {
+                onChange(dateStr, "");
+              }
             }
           }
         }
@@ -202,8 +231,12 @@ export default function CalendarPicker({
 
       // Determine label & styles for tooltip/indicator
       let tooltipText = "";
-      if (isBooked && booking) {
-        if (booking.source === "airbnb") {
+      if (isCheckoutCandidate) {
+        tooltipText = "Available for check-out";
+      } else if (isBooked && booking) {
+        if (isBookingCheckIn) {
+          tooltipText = "Check-out only";
+        } else if (booking.source === "airbnb") {
           tooltipText = "Airbnb: Blocked Dates";
         } else {
           tooltipText = "Unavailable";
@@ -228,14 +261,20 @@ export default function CalendarPicker({
 
       let dayClass =
         "relative flex aspect-square w-full items-center justify-center rounded-full text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ";
-      if (isBooked) {
-        dayClass += "cursor-not-allowed text-destructive/70 line-through";
-      } else if (isPast) {
-        dayClass += "cursor-not-allowed text-muted-foreground/40 opacity-50";
-      } else if (isSelectedFrom || isSelectedTo) {
+      if (isSelectedFrom || isSelectedTo) {
         dayClass += "bg-primary font-semibold text-primary-foreground";
       } else if (isRangeInterior) {
         dayClass += "text-accent-foreground";
+      } else if (isCheckoutCandidate) {
+        dayClass += "text-foreground hover:bg-accent ring-1 ring-inset ring-primary/40 cursor-pointer";
+      } else if (isBooked) {
+        if (isBookingCheckIn && !isSelectingCheckout) {
+          dayClass += "cursor-pointer text-muted-foreground/80 hover:bg-muted/40";
+        } else {
+          dayClass += "cursor-not-allowed text-destructive/70 line-through";
+        }
+      } else if (isPast) {
+        dayClass += "cursor-not-allowed text-muted-foreground/40 opacity-50";
       } else if (isToday) {
         dayClass += "ring-1 ring-inset ring-primary/60 text-foreground hover:bg-accent";
       } else {
@@ -259,10 +298,12 @@ export default function CalendarPicker({
             {day}
 
             {/* Visual indicator for booked/blocked dates */}
-            {isBooked && (
+            {isBooked && !isCheckoutCandidate && (
               <span
                 aria-hidden="true"
-                className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-destructive"
+                className={`absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full ${
+                  isBookingCheckIn ? "bg-muted-foreground/60" : "bg-destructive"
+                }`}
               />
             )}
           </button>
@@ -362,6 +403,12 @@ export default function CalendarPicker({
               00
             </span>
             <span>Unavailable</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="text-muted-foreground/80 font-medium">
+              00
+            </span>
+            <span>Check-out only</span>
           </div>
         </div>
 

@@ -5,6 +5,17 @@ function formatIcsDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 }
 
+// Helper to construct a Date at a specific hour/minute in SAST (UTC+2) timezone
+function setTimeInSast(date: Date, hours: number, minutes: number): Date {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+  const isoStr = `${year}-${month}-${day}T${hh}:${mm}:00+02:00`;
+  return new Date(isoStr);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,6 +32,8 @@ export async function GET(
       (b: any) => b.paymentStatus !== "failed" && b.paymentStatus !== "refunded"
     );
 
+    const isHourly = property.bookingType === "hourly";
+
     const icsLines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -30,9 +43,14 @@ export async function GET(
     ];
 
     for (const booking of activeBookings) {
-      const start = new Date(booking.fromDate);
-      const end = new Date(booking.toDate);
+      let start = new Date(booking.fromDate);
+      let end = new Date(booking.toDate);
       if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
+
+      if (!isHourly) {
+        start = setTimeInSast(start, 14, 0); // Check-in at 14:00 SAST (12:00 UTC)
+        end = setTimeInSast(end, 10, 0); // Check-out at 10:00 SAST (08:00 UTC)
+      }
 
       icsLines.push("BEGIN:VEVENT");
       icsLines.push(`UID:booking-${booking.id}@simpleplek.co.za`);

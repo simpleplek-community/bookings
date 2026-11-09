@@ -163,8 +163,8 @@
   --faint: oklch(0.6 0.02 190);
   --line: oklch(1 0 0 / 12%);
   --line-strong: oklch(1 0 0 / 22%);
-  --brand: #f43f5e;
-  --brand-hover: #e11d48;
+  --brand: #00B09C;
+  --brand-hover: #027d6f;
   --pro: #f59e0b;
   --pro-strong: #d97706;
   --pro-soft: rgba(245, 158, 11, 0.15);
