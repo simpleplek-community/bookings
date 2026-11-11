@@ -2,16 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  UsersIcon,
-  ShieldCheckIcon,
-  ChevronRightIcon,
-  SparklesIcon,
+  ArrowDownIcon,
   ArrowRightIcon,
-  LockIcon,
-  CompassIcon,
+  CalendarCheck2Icon,
   CheckCircle2Icon,
+  CompassIcon,
+  HeartHandshakeIcon,
+  ShieldCheckIcon,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   SyncedScheduleDemo,
@@ -19,303 +17,292 @@ import {
 } from "./AboutInteractiveWidgets";
 
 export const metadata: Metadata = {
-  title: "About Simpleplek | Synced Schedules, Split Payments & Members-Only Stays",
+  title: "About Simpleplek | Better stays, shared simply",
   description:
-    "Host with synced calendars, share package payments with other guests, and enjoy exclusive members-only booking with zero platform commission fees.",
+    "Discover Simpleplek: coastal stays with synced availability, easy group payments and a low-cost membership built around a more connected way to travel.",
   keywords: [
     "About Simpleplek",
-    "Host with a synced schedule",
-    "Share package payments with other guests",
-    "Members only booking",
-    "calendar sync ical",
-    "split group booking",
+    "South Africa coastal stays",
+    "synced accommodation calendar",
+    "group stay payments",
+    "members-only accommodation",
     "surf and yoga retreat South Africa",
   ],
   alternates: {
-    canonical: "https://simpleplek.com/about",
+    canonical: "https://simpleplek.co.za/about",
   },
   openGraph: {
-    title: "About Simpleplek | Synced Schedules, Split Payments & Members-Only Booking",
+    title: "About Simpleplek | Better stays, shared simply",
     description:
-      "Three reasons to love Simpleplek: Host with a synced schedule, share package payments with other guests, and members-only booking.",
-    url: "https://simpleplek.com/about",
+      "A more connected way to find, host and share remarkable coastal stays.",
+    url: "https://simpleplek.co.za/about",
     siteName: "Simpleplek",
     locale: "en_ZA",
     type: "website",
+    images: [
+      {
+        url: "https://simpleplek.co.za/images/about-hero.jpg",
+        width: 1600,
+        height: 900,
+        alt: "A coastal retreat in Cape Town, with surfboards and a group practising yoga by the ocean",
+      },
+    ],
   },
 };
 
+const chapters = [
+  { number: "01", label: "Stay in sync", href: "#stay-in-sync" },
+  { number: "02", label: "Go together", href: "#go-together" },
+  { number: "03", label: "Belong here", href: "#belong-here" },
+];
+
 export default function AboutPage() {
-  const aboutSchema = {
-    "@context": "https://schema.org",
-    "@type": "AboutPage",
-    name: "About Simpleplek",
-    description:
-      "Simpleplek is built on three core pillars: hosting with a synced schedule, sharing package payments among guests, and curated members-only booking.",
-    url: "https://simpleplek.com/about",
-  };
-
   return (
-    <div className="min-h-screen w-full bg-background font-sans text-foreground antialiased selection:bg-primary/20 selection:text-primary">
-      {/* Schema.org Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }}
-      />
-
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb Navigation */}
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-        >
-          <Link href="/" className="transition-colors hover:text-foreground">
-            Home
-          </Link>
-          <ChevronRightIcon className="size-3.5" aria-hidden="true" />
-          <span className="text-foreground">About</span>
-        </nav>
-
-        {/* Hero Section */}
-        <header className="mt-6 text-center sm:text-left">
-          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-            <SparklesIcon className="mr-1.5 size-3" />
-            Simpleplek Highlights
-          </Badge>
-
-          <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl">
-            Hospitality,{" "}
-            <span className="bg-gradient-to-r from-primary via-teal-500 to-secondary bg-clip-text text-transparent">
-              Synced & Shared
-            </span>
-          </h1>
-
-          <p className="mt-2.5 max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Three simple reasons why hosts, retreat leaders, and traveling groups choose Simpleplek.
+    <div className="w-full bg-background text-foreground selection:bg-primary/20 selection:text-foreground">
+      <div className="mx-auto w-full max-w-7xl px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-14 lg:px-12">
+        <header className="mx-auto max-w-4xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:text-sm">
+            A little more room to belong
           </p>
+          <h1 className="mx-auto mt-5 max-w-4xl font-heading text-4xl font-semibold leading-[1.04] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
+            Good places bring
+            <br className="hidden sm:block" />
+            <span className="text-primary">good people together.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+            Simpleplek makes it easier to find a place that feels right, bring your people along,
+            and spend less time sorting out the details.
+          </p>
+          <Link
+            href="#our-way"
+            className="mt-7 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            See how it works
+            <ArrowDownIcon className="size-4" aria-hidden="true" />
+          </Link>
         </header>
 
-        {/* Big Image Showcase */}
-        <section aria-label="Simpleplek Retreat Showcase" className="mt-6">
-          <div className="group relative overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg">
-            <div className="relative aspect-16/9 w-full overflow-hidden">
+        <section aria-label="A coastal retreat in Cape Town" className="mt-10 sm:mt-14">
+          <div className="group relative isolate overflow-hidden rounded-[1.75rem] bg-foreground shadow-xl sm:rounded-[2rem]">
+            <div className="relative aspect-[4/3] sm:aspect-[2.15/1]">
               <Image
                 src="/images/about-hero.jpg"
-                alt="Simpleplek oceanfront surf and yoga retreat in Cape Town"
+                alt="A group enjoying surf and yoga at a coastal retreat in Cape Town"
                 fill
                 priority
-                sizes="(max-width: 1024px) 100vw, 1024px"
-                className="object-cover transition-transform duration-700 ease-out group-hover:scale-102"
+                sizes="(max-width: 768px) 100vw, 1200px"
+                className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
             </div>
-
-            <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-6 text-white">
+            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-5 p-5 text-white sm:flex-row sm:items-end sm:justify-between sm:p-9 lg:p-11">
               <div>
-                <span className="inline-block rounded-full bg-black/40 px-3 py-1 text-xs font-semibold backdrop-blur-md">
-                  Llandudno Ocean Shala &bull; Cape Town
+                <span className="inline-flex rounded-full border border-white/30 bg-black/20 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+                  Llandudno · Cape Town
                 </span>
-                <p className="mt-1.5 font-heading text-base font-bold sm:text-xl text-white drop-shadow-sm">
-                  Surf, Yoga &amp; Collective Coastal Retreats
+                <p className="mt-3 max-w-2xl font-heading text-2xl font-medium leading-tight tracking-tight sm:text-4xl">
+                  Make space for the kind of time you remember.
                 </p>
               </div>
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-md">
-                <CheckCircle2Icon className="size-3.5 text-emerald-400" />
-                Live Availability Synced
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* ================================================================== */}
-        {/* PILLAR 1: HOST WITH A SYNCED SCHEDULE */}
-        {/* ================================================================== */}
-        <section id="synced-schedule" className="mt-14 scroll-mt-20">
-          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-12">
-            <div className="space-y-3 lg:col-span-5">
-              <div className="inline-flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-secondary/15 text-xs font-bold text-secondary">
-                  01
-                </span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-                  Schedule Sync
-                </span>
+              <div className="flex w-fit shrink-0 items-center gap-2 rounded-full border border-white/25 bg-black/20 px-3.5 py-2 text-xs font-medium backdrop-blur-sm">
+                <span className="size-2 rounded-full bg-emerald-300" />
+                A stay for your whole crew
               </div>
-
-              <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                Host with a Synced Schedule
-              </h2>
-
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Connect your Airbnb or Google Calendar iCal feed once. Dates lock
-                automatically across every channel—guaranteeing zero double bookings for multi-night
-                stays or precision hourly workshop slots.
-              </p>
-
-              <ul className="space-y-1.5 pt-1 text-xs text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-secondary shrink-0" />
-                  <span>Two-way iCal calendar sync with instant clash guard</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-secondary shrink-0" />
-                  <span>Support for multi-day stays and hourly sessions</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-secondary shrink-0" />
-                  <span>Guests set dates once to view live pricing everywhere</span>
-                </li>
-              </ul>
             </div>
-
-            <div className="lg:col-span-7">
-              <SyncedScheduleDemo />
-            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+            <span>Surf, yoga and coastal stays—made to be shared.</span>
+            <span>Thoughtfully simple, from first click to check-in.</span>
           </div>
         </section>
 
-        {/* ================================================================== */}
-        {/* PILLAR 2: SHARE PACKAGE PAYMENTS WITH OTHER GUESTS */}
-        {/* ================================================================== */}
-        <section id="share-package-payments" className="mt-14 scroll-mt-20">
-          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-12">
-            <div className="order-2 lg:order-1 lg:col-span-7">
-              <SplitCalculatorDemo />
-            </div>
-
-            <div className="order-1 space-y-3 lg:order-2 lg:col-span-5">
-              <div className="inline-flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-xs font-bold text-primary">
-                  02
-                </span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                  Split Payments
-                </span>
-              </div>
-
-              <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                Share Package Payments with Other Guests
-              </h2>
-
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Send your travel crew a single estimate link. Co-guests join the official stay
-                roster, co-pay their share directly, and select personal add-on packages (surf
-                gear, yoga, catering)—no awkward payment chasing.
+        <section id="our-way" className="scroll-mt-24 pt-20 sm:pt-28">
+          <div className="flex flex-col gap-4 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                The Simpleplek way
               </p>
-
-              <ul className="space-y-1.5 pt-1 text-xs text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-primary shrink-0" />
-                  <span>1-Click shareable estimate link for your group</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-primary shrink-0" />
-                  <span>Transparent co-pay roster with live join tracking</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-3.5 text-primary shrink-0" />
-                  <span>Custom add-on selections per guest</span>
-                </li>
-              </ul>
+              <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+                Three small things. A better kind of stay.
+              </h2>
             </div>
-          </div>
-        </section>
-
-        {/* ================================================================== */}
-        {/* PILLAR 3: MEMBERS-ONLY BOOKING */}
-        {/* ================================================================== */}
-        <section id="members-only-booking" className="mt-14 scroll-mt-20">
-          <div className="text-center sm:text-left">
-            <div className="inline-flex items-center gap-2">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                03
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Curated Community
-              </span>
-            </div>
-
-            <h2 className="mt-2 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Members-Only Booking
-            </h2>
-
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              We ditched the 15%–20% commission model for an accessible membership (R15/month or
-              R150/year) that unlocks live calendars and direct rates for a verified collective.
+            <p className="max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+              Less friction for the people hosting, more ease for the people travelling.
             </p>
           </div>
+          <nav aria-label="About Simpleplek" className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {chapters.map((chapter) => (
+              <a
+                key={chapter.number}
+                href={chapter.href}
+                className="group flex items-center justify-between gap-4 py-5 transition-colors hover:text-primary sm:px-6 sm:py-6 first:sm:pl-0 last:sm:pr-0"
+              >
+                <span className="flex items-center gap-4">
+                  <span className="font-mono text-xs text-muted-foreground">{chapter.number}</span>
+                  <span className="font-medium">{chapter.label}</span>
+                </span>
+                <ArrowRightIcon className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" aria-hidden="true" />
+              </a>
+            ))}
+          </nav>
+        </section>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <ShieldCheckIcon className="size-4" />
-              </div>
-              <h3 className="font-heading mt-3 text-base font-bold text-foreground">
-                R0 Booking Fees
-              </h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                No hidden 20% platform markups. Members book stays at direct rates without paying
-                inflated booking commissions.
+        <section id="stay-in-sync" className="scroll-mt-24 border-t border-border py-16 sm:py-24">
+          <div className="grid items-center gap-9 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">01 · Stay in sync</p>
+              <h2 className="mt-4 max-w-lg font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                One calendar. Everyone on the same page.
+              </h2>
+              <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
+                Connect an Airbnb or Google Calendar iCal feed once. Dates update across your
+                channels, so hosts can welcome guests without worrying about double bookings.
               </p>
+              <ul className="mt-6 flex flex-col gap-3 text-sm text-foreground/85">
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  Two-way iCal sync with a built-in clash guard
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  Room for multi-night stays and hourly sessions
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  Guests see live availability for their dates
+                </li>
+              </ul>
             </div>
+            <SyncedScheduleDemo />
+          </div>
+        </section>
 
-            <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
-                <LockIcon className="size-4" />
-              </div>
-              <h3 className="font-heading mt-3 text-base font-bold text-foreground">
-                Unlocked Calendars
-              </h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Members unlock full real-time calendars and access secret coastal retreats not
-                listed on generic public search portals.
-              </p>
+        <section id="go-together" className="scroll-mt-24 border-t border-border py-16 sm:py-24">
+          <div className="grid items-center gap-9 lg:grid-cols-[1.18fr_0.82fr] lg:gap-16">
+            <div className="order-2 lg:order-1">
+              <SplitCalculatorDemo />
             </div>
-
-            <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <UsersIcon className="size-4" />
-              </div>
-              <h3 className="font-heading mt-3 text-base font-bold text-foreground">
-                Verified Collective
-              </h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Hosts welcome respectful, verified surfers, yogis, and travelers. High trust,
-                community values, and mutual respect.
+            <div className="order-1 lg:order-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">02 · Go together</p>
+              <h2 className="mt-4 max-w-lg font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                Share the plan, not the payment stress.
+              </h2>
+              <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
+                Send your group one estimate link. Everyone can join the stay, pay their share and
+                choose the extras they actually want—without one person chasing the rest.
               </p>
+              <ul className="mt-6 flex flex-col gap-3 text-sm text-foreground/85">
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  A single link for your whole group
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  Clear co-pay amounts for every guest
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  Personalise the stay with optional add-ons
+                </li>
+              </ul>
             </div>
           </div>
         </section>
 
-        {/* Compact Call to Action */}
-        <section aria-label="Call to Action" className="mt-14 mb-8">
-          <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-secondary/10 p-6 sm:flex-row sm:p-8 text-center sm:text-left">
-            <div>
-              <h3 className="font-heading text-lg font-bold text-foreground sm:text-xl">
-                Ready to explore Simpleplek?
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Browse available retreats or join our membership to host and book.
-              </p>
+        <section id="belong-here" className="scroll-mt-24 border-t border-border py-16 sm:py-24">
+          <div className="overflow-hidden rounded-[1.75rem] bg-foreground text-background sm:rounded-[2rem]">
+            <div className="grid gap-10 p-6 sm:p-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16 lg:p-14">
+              <div className="flex flex-col items-start">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">03 · Belong here</p>
+                <h2 className="mt-4 max-w-md font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                  A more welcoming way to book.
+                </h2>
+                <p className="mt-5 max-w-md text-sm leading-6 text-background/75 sm:text-base sm:leading-7">
+                  Simpleplek is for people who care about where they stay—and who they share it
+                  with. Membership keeps booking direct, calendars open and the community connected.
+                </p>
+                <div className="mt-7 rounded-2xl border border-background/15 bg-background/5 px-5 py-4">
+                  <p className="text-xs uppercase tracking-wider text-background/65">Membership</p>
+                  <p className="mt-1 font-heading text-2xl font-semibold">
+                    R15 <span className="text-sm font-normal text-background/70">/ month</span>
+                  </p>
+                  <p className="mt-1 text-sm text-background/70">or R150 per year</p>
+                </div>
+                <Button
+                  nativeButton={false}
+                  render={<Link href="/subscribe" />}
+                  className="mt-6 rounded-full px-5"
+                >
+                  Find your place
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3 lg:gap-4">
+                <article className="rounded-2xl border border-background/15 bg-background/5 p-5 sm:p-6">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <ShieldCheckIcon className="size-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 font-heading text-lg font-semibold">No booking fees</h3>
+                  <p className="mt-2 text-sm leading-6 text-background/70">
+                    Skip the platform markups. Members book stays at the host&apos;s direct rate.
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-background/15 bg-background/5 p-5 sm:p-6">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <CalendarCheck2Icon className="size-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 font-heading text-lg font-semibold">Open calendars</h3>
+                  <p className="mt-2 text-sm leading-6 text-background/70">
+                    See live availability and discover coastal stays beyond the usual portals.
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-background/15 bg-background/5 p-5 sm:p-6">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <HeartHandshakeIcon className="size-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 font-heading text-lg font-semibold">A trusted circle</h3>
+                  <p className="mt-2 text-sm leading-6 text-background/70">
+                    A community of considerate hosts, surfers, yogis and curious travellers.
+                  </p>
+                </article>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5 shrink-0">
-              <Button size="sm" nativeButton={false} render={<Link href="/bookings" />}>
-                <CompassIcon className="size-3.5 mr-1" />
-                Explore Stays
-                <ArrowRightIcon className="size-3.5 ml-1" />
+          </div>
+        </section>
+
+        <section aria-label="Explore Simpleplek" className="pb-5 pt-3 sm:pb-8">
+          <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+            <div className="flex items-start gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <CompassIcon className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
+                  Your next good place is out there.
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Explore distinctive stays or join the Simpleplek community.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 sm:shrink-0">
+              <Button nativeButton={false} render={<Link href="/bookings" />} className="rounded-full px-5">
+                Explore stays
+                <ArrowRightIcon data-icon="inline-end" />
               </Button>
               <Button
                 variant="outline"
-                size="sm"
                 nativeButton={false}
                 render={<Link href="/subscribe" />}
+                className="rounded-full px-5"
               >
-                Become a Member
+                Become a member
               </Button>
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }
