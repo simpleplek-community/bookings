@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowDownIcon,
   ArrowRightIcon,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  AboutHeroVideo,
   SyncedScheduleDemo,
   SplitCalculatorDemo,
 } from "./AboutInteractiveWidgets";
@@ -85,14 +85,7 @@ export default function AboutPage() {
         <section aria-label="A coastal retreat in Cape Town" className="mt-10 sm:mt-14">
           <div className="group relative isolate overflow-hidden rounded-[1.75rem] bg-foreground shadow-xl sm:rounded-[2rem]">
             <div className="relative aspect-[4/3] sm:aspect-[2.15/1]">
-              <Image
-                src="/images/about-hero.jpg"
-                alt="A group enjoying surf and yoga at a coastal retreat in Cape Town"
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 1200px"
-                className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
-              />
+              <AboutHeroVideo />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
             </div>
             <div className="absolute inset-x-0 bottom-0 flex flex-col gap-5 p-5 text-white sm:flex-row sm:items-end sm:justify-between sm:p-9 lg:p-11">
