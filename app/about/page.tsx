@@ -179,7 +179,7 @@ export default function AboutPage() {
 
         <section id="go-together" className="scroll-mt-24 border-t border-border py-16 sm:py-24">
           <div className="grid items-center gap-9 lg:grid-cols-[1.18fr_0.82fr] lg:gap-16">
-            <div className="order-2 lg:order-1">
+            <div className="order-2 min-w-0 lg:order-1">
               <SplitCalculatorDemo />
             </div>
             <div className="order-1 lg:order-2">
