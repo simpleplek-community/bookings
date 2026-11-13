@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   CalendarSyncIcon,
   CheckIcon,
@@ -11,6 +11,8 @@ import {
   SparklesIcon,
   CheckCircle2Icon,
   CompassIcon,
+  PauseIcon,
+  PlayIcon,
   WavesIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -497,5 +499,95 @@ export function PersonaWorkflowTabs() {
         )}
       </div>
     </div>
+  );
+}
+
+export function AboutHeroVideo() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let isMounted = true;
+
+    const syncPlayback = async (shouldPlay: boolean) => {
+      if (!shouldPlay) {
+        video.pause();
+        if (isMounted) setIsPlaying(false);
+        return;
+      }
+
+      try {
+        await video.play();
+        if (isMounted) setIsPlaying(true);
+      } catch {
+        if (isMounted) setIsPlaying(false);
+      }
+    };
+
+    const handleMotionPreferenceChange = (event: MediaQueryListEvent) => {
+      void syncPlayback(!event.matches);
+    };
+
+    void syncPlayback(!motionPreference.matches);
+    motionPreference.addEventListener("change", handleMotionPreferenceChange);
+
+    return () => {
+      isMounted = false;
+      motionPreference.removeEventListener("change", handleMotionPreferenceChange);
+      video.pause();
+    };
+  }, []);
+
+  const togglePlayback = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      try {
+        await video.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+      }
+      return;
+    }
+
+    video.pause();
+    setIsPlaying(false);
+  };
+
+  return (
+    <>
+      <video
+        ref={videoRef}
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        poster="/images/about-hero.jpg"
+        aria-hidden="true"
+        tabIndex={-1}
+        className="size-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+      >
+        <source
+          src="https://pub-62b3d61e820a424983412732dac4ef9f.r2.dev/yogasurfcommunity.mp4"
+          type="video/mp4"
+        />
+      </video>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        aria-label={isPlaying ? "Pause hero video" : "Play hero video"}
+        onClick={togglePlayback}
+        className="absolute right-4 top-4 z-10 rounded-full shadow-lg sm:right-6 sm:top-6"
+      >
+        {isPlaying ? <PauseIcon data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
+      </Button>
+    </>
   );
 }

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowDownIcon,
   ArrowRightIcon,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  AboutHeroVideo,
   SyncedScheduleDemo,
   SplitCalculatorDemo,
 } from "./AboutInteractiveWidgets";
@@ -85,22 +85,12 @@ export default function AboutPage() {
         <section aria-label="A coastal retreat in Cape Town" className="mt-10 sm:mt-14">
           <div className="group relative isolate overflow-hidden rounded-[1.75rem] bg-foreground shadow-xl sm:rounded-[2rem]">
             <div className="relative aspect-[4/3] sm:aspect-[2.15/1]">
-              <Image
-                src="/images/about-hero.jpg"
-                alt="A group enjoying surf and yoga at a coastal retreat in Cape Town"
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 1200px"
-                className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
-              />
+              <AboutHeroVideo />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
             </div>
             <div className="absolute inset-x-0 bottom-0 flex flex-col gap-5 p-5 text-white sm:flex-row sm:items-end sm:justify-between sm:p-9 lg:p-11">
               <div>
-                <span className="inline-flex rounded-full border border-white/30 bg-black/20 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                  Llandudno · Cape Town
-                </span>
-                <p className="mt-3 max-w-2xl font-heading text-2xl font-medium leading-tight tracking-tight sm:text-4xl">
+                <p className="max-w-2xl font-heading text-2xl font-medium leading-tight tracking-tight sm:text-4xl">
                   Make space for the kind of time you remember.
                 </p>
               </div>
@@ -179,7 +169,7 @@ export default function AboutPage() {
 
         <section id="go-together" className="scroll-mt-24 border-t border-border py-16 sm:py-24">
           <div className="grid items-center gap-9 lg:grid-cols-[1.18fr_0.82fr] lg:gap-16">
-            <div className="order-2 lg:order-1">
+            <div className="order-2 min-w-0 lg:order-1">
               <SplitCalculatorDemo />
             </div>
             <div className="order-1 lg:order-2">
@@ -220,6 +210,8 @@ export default function AboutPage() {
                 <p className="mt-5 max-w-md text-sm leading-6 text-background/75 sm:text-base sm:leading-7">
                   Simpleplek is for people who care about where they stay—and who they share it
                   with. Membership keeps booking direct, calendars open and the community connected.
+                  Hosts can turn on the Private / Members only toggle to keep a listing off the
+                  open internet.
                 </p>
                 <div className="mt-7 rounded-2xl border border-background/15 bg-background/5 px-5 py-4">
                   <p className="text-xs uppercase tracking-wider text-background/65">Membership</p>
@@ -252,9 +244,10 @@ export default function AboutPage() {
                   <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
                     <CalendarCheck2Icon className="size-5" aria-hidden="true" />
                   </div>
-                  <h3 className="mt-5 font-heading text-lg font-semibold">Open calendars</h3>
+                  <h3 className="mt-5 font-heading text-lg font-semibold">Unlocked Calendars</h3>
                   <p className="mt-2 text-sm leading-6 text-background/70">
-                    See live availability and discover coastal stays beyond the usual portals.
+                    Members unlock full real-time calendars and access secret coastal retreats not
+                    listed on generic public search portals.
                   </p>
                 </article>
                 <article className="rounded-2xl border border-background/15 bg-background/5 p-5 sm:p-6">
