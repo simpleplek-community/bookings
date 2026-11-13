@@ -210,6 +210,8 @@ export default function AboutPage() {
                 <p className="mt-5 max-w-md text-sm leading-6 text-background/75 sm:text-base sm:leading-7">
                   Simpleplek is for people who care about where they stay—and who they share it
                   with. Membership keeps booking direct, calendars open and the community connected.
+                  Hosts can turn on the Private / Members only toggle to keep a listing off the
+                  open internet.
                 </p>
                 <div className="mt-7 rounded-2xl border border-background/15 bg-background/5 px-5 py-4">
                   <p className="text-xs uppercase tracking-wider text-background/65">Membership</p>
