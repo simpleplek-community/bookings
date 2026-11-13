@@ -90,10 +90,7 @@ export default function AboutPage() {
             </div>
             <div className="absolute inset-x-0 bottom-0 flex flex-col gap-5 p-5 text-white sm:flex-row sm:items-end sm:justify-between sm:p-9 lg:p-11">
               <div>
-                <span className="inline-flex rounded-full border border-white/30 bg-black/20 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                  Llandudno · Cape Town
-                </span>
-                <p className="mt-3 max-w-2xl font-heading text-2xl font-medium leading-tight tracking-tight sm:text-4xl">
+                <p className="max-w-2xl font-heading text-2xl font-medium leading-tight tracking-tight sm:text-4xl">
                   Make space for the kind of time you remember.
                 </p>
               </div>
