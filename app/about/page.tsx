@@ -244,9 +244,10 @@ export default function AboutPage() {
                   <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
                     <CalendarCheck2Icon className="size-5" aria-hidden="true" />
                   </div>
-                  <h3 className="mt-5 font-heading text-lg font-semibold">Open calendars</h3>
+                  <h3 className="mt-5 font-heading text-lg font-semibold">Unlocked Calendars</h3>
                   <p className="mt-2 text-sm leading-6 text-background/70">
-                    See live availability and discover coastal stays beyond the usual portals.
+                    Members unlock full real-time calendars and access secret coastal retreats not
+                    listed on generic public search portals.
                   </p>
                 </article>
                 <article className="rounded-2xl border border-background/15 bg-background/5 p-5 sm:p-6">
